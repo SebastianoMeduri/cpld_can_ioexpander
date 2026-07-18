@@ -175,7 +175,7 @@
       <div class="chip"><span class="k">Clock</span><span class="v">20 MHz</span></div>
       <div class="chip"><span class="k">Bitrate</span><span class="v">500 kbit/s</span></div>
       <div class="chip"><span class="k">Logic</span><span class="v">708 / 1270</span></div>
-      <div class="chip"><span class="k">I/O util.</span><span class="v">41 pin</span></div>
+      <div class="chip"><span class="k">I/O util.</span><span class="v">43 pin</span></div>
       <div class="chip"><span class="k">Fault conf.</span><span class="v">TEC/REC</span></div>
       <div class="chip pass"><span class="k">Sintesi</span><span class="v">0 errori</span></div>
       <div class="chip pass"><span class="k">Simulazione</span><span class="v">PASS</span></div>
@@ -267,7 +267,7 @@
       <div class="card">
         <h4>Occupazione (post-fit)</h4>
         <div class="meter"><span class="lab">Logic cells</span><span class="track"><span class="fill acc" style="width:55.7%"></span></span><span class="val">708 / 1270</span></div>
-        <div class="meter"><span class="lab">Pin I/O</span><span class="track"><span class="fill acc" style="width:36%"></span></span><span class="val">41 / 114</span></div>
+        <div class="meter"><span class="lab">Pin I/O</span><span class="track"><span class="fill acc" style="width:38%"></span></span><span class="val">43 / 114</span></div>
         <div class="meter"><span class="lab">Interconnessioni</span><span class="track"><span class="fill acc" style="width:24%"></span></span><span class="val">~24 % med.</span></div>
         <p class="muted" style="font-size:12.5px;margin:12px 0 0">Ampio margine per le future espansioni (USB→UART, SPI EEPROM).</p>
       </div>
@@ -434,7 +434,9 @@
             <tr><td class="mono">node_addr[1]</td><td class="pin">23</td><td><span class="tag in">in</span></td><td>Indirizzo nodo</td></tr>
             <tr><td class="mono">node_addr[2]</td><td class="pin">24</td><td><span class="tag in">in</span></td><td>Indirizzo nodo</td></tr>
             <tr><td class="mono">node_addr[3]</td><td class="pin">27</td><td><span class="tag in">in</span></td><td>Indirizzo nodo</td></tr>
-            <tr><td class="mono">led_error</td><td class="pin">28</td><td><span class="tag out">out</span></td><td>Diagnostica: impulso su errore CAN</td></tr>
+            <tr><td class="mono">led_error</td><td class="pin">28</td><td><span class="tag out">out</span></td><td>Diagnostica: LED su fault CAN persistente</td></tr>
+            <tr><td class="mono">safe_ch1</td><td class="pin">29</td><td><span class="tag in">in</span></td><td>Sicurezza canale 1 (consenso attivo alto, pull-down est.)</td></tr>
+            <tr><td class="mono">safe_ch2</td><td class="pin">30</td><td><span class="tag in">in</span></td><td>Sicurezza canale 2 (consenso attivo alto, pull-down est.)</td></tr>
           </tbody>
         </table>
       </div>
@@ -467,6 +469,7 @@
       </div>
     </div>
     <div class="note warn"><b>Ingressi non pilotati.</b> I pin usati come ingresso vanno provvisti di <b>resistori di pull</b> esterni (o di una sorgente che li piloti sempre): al reset la direzione di default è ingresso/alta impedenza e i CPLD non tollerano ingressi flottanti.</div>
+    <div class="note"><b>Funzione di sicurezza (doppio canale fail-safe).</b> <code>safe_ch1</code> e <code>safe_ch2</code> sono consensi attivi-alti: le uscite sono abilitate solo se <b>entrambi</b> sono alti. Se uno qualsiasi va basso (E-stop, filo interrotto, mancanza segnale) <b>tutte le uscite vengono forzate a livello basso</b> con override combinatorio, indipendentemente dai comandi CAN; il ripristino è automatico al ritorno del consenso e ogni transizione genera una trama STATUS. Usare <b>pull-down esterni</b> così che la perdita di segnale porti allo stato sicuro.</div>
   </section>
 
   <!-- ============ 7. ALIMENTAZIONE ============ -->
@@ -552,7 +555,7 @@
           </defs>
         </svg>
       </div>
-      <figcaption><b>BOM minima esterna:</b> transceiver CAN 3.3 V, oscillatore 20 MHz, terminazione 120 Ω (agli estremi del bus), header JTAG, dip-switch indirizzo + pull, resistori di pull sugli I/O usati come ingresso, disaccoppiamento.</figcaption>
+      <figcaption><b>BOM minima esterna:</b> transceiver CAN 3.3 V, oscillatore 20 MHz, terminazione 120 Ω (agli estremi del bus), header JTAG, dip-switch indirizzo + pull, resistori di pull sugli I/O usati come ingresso, <b>pull-down sui due ingressi di sicurezza</b> (loss-of-signal → stop), disaccoppiamento.</figcaption>
     </figure>
     <div class="grid2">
       <div class="card"><h4>Transceiver</h4><ul>
@@ -647,11 +650,13 @@
           <tr><td class="mono">728.5 µs</td><td>Iniezione bit/stuff error (bus forzato dominante)</td><td><b style="color:var(--good)">error frame ✓</b></td></tr>
           <tr><td class="mono">951.7 µs</td><td>Recupero: nuova OUTPUT applicata dopo l'errore</td><td><b style="color:var(--good)">io[31:16] = 0x1234 ✓</b></td></tr>
           <tr><td class="mono">1137.8 µs</td><td>Trama a ID esteso 29 bit (2.0B passive)</td><td><b style="color:var(--good)">ACK + ignorata ✓</b></td></tr>
-          <tr><td class="mono">1137.8 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
+          <tr><td class="mono">1279 µs</td><td>Sicurezza: apertura canale 1 → uscite forzate low</td><td><b style="color:var(--good)">io = 0x0000 ✓</b></td></tr>
+          <tr><td class="mono">1280 µs</td><td>Ripristino + apertura canale 2 (ridondanza)</td><td><b style="color:var(--good)">low + recover ✓</b></td></tr>
+          <tr><td class="mono">1281 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
         </tbody>
       </table>
     </div>
-    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica · <b>rilevazione errore, error frame e recupero (fault confinement)</b> · <b>tolleranza trame estese 2.0B passive</b>.</p>
+    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica · <b>rilevazione errore, error frame e recupero (fault confinement)</b> · <b>tolleranza trame estese 2.0B passive</b> · <b>funzione di sicurezza a doppio canale (uscite a low, auto-ripristino)</b>.</p>
   </section>
 
   <!-- ============ 10. NOTE ============ -->

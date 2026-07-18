@@ -17,6 +17,9 @@ configurabili singolarmente come ingresso o uscita e comandabili via CAN.
   (29 bit) senza consegnarle all'applicazione (compatibilita' reti miste).
 - Risincronizzazione con correzione dell'errore di fase in entrambe le direzioni
   (tolleranza di clock).
+- **Funzione di sicurezza a doppio canale (fail-safe)**: due ingressi di consenso
+  (`safe_ch1`, `safe_ch2`); se uno qualsiasi va basso le uscite vengono forzate a
+  livello basso, con auto-ripristino e notifica STATUS.
 - **32 pin bidirezionali**, direzione configurabile per singolo pin.
 - Invio dello stato **su richiesta** e **automatico** al variare di un ingresso.
 - Default: **500 kbit/s** con clock a **20 MHz** (parametrizzabile via `generic`).
@@ -53,8 +56,10 @@ Ordine di compilazione: `can_pkg` -> `can_bit_timing` -> `can_mac` ->
 | `can_rxd`     | in    | RXD dal transceiver CAN (0 = dominante)      |
 | `can_txd`     | out   | TXD verso il transceiver CAN (0 = dominante) |
 | `node_addr`   | in    | indirizzo nodo, 4 bit (es. da dip-switch)    |
+| `safe_ch1`    | in    | sicurezza, canale 1 (consenso attivo alto)   |
+| `safe_ch2`    | in    | sicurezza, canale 2 (consenso attivo alto)   |
 | `io[31:0]`    | inout | 32 pin di I/O bidirezionali                  |
-| `led_error`   | out   | diagnostica: impulso su errore CAN           |
+| `led_error`   | out   | diagnostica: LED su fault CAN persistente    |
 
 Il core va collegato a un transceiver CAN fisico (es. **TJA1050**,
 **SN65HVD230**, **MCP2551**): `can_txd` -> TXD, `can_rxd` <- RXD.

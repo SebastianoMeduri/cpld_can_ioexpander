@@ -61,10 +61,20 @@ Forza il nodo a trasmettere subito una trama STATUS.
 ### STATUS (FUNC=100, DLC=4)
 Inviata dall'expander:
 * su ricezione di un REQUEST;
-* automaticamente quando cambia un pin configurato come ingresso.
+* automaticamente quando cambia un pin configurato come ingresso;
+* automaticamente ad ogni transizione della funzione di sicurezza.
 
-`data[63:32]` = stato dei pin: per le uscite il valore pilotato, per gli
-ingressi il valore letto.
+`data[63:32]` = stato dei pin: per le uscite il valore **effettivo** (forzato a
+0 se la sicurezza e' intervenuta), per gli ingressi il valore letto.
+
+## Funzione di sicurezza (doppio canale fail-safe)
+
+Due ingressi di consenso attivi-alti, `safe_ch1` e `safe_ch2`. Le uscite sono
+abilitate solo se **entrambi** sono alti. Se uno qualsiasi va basso (E-stop,
+filo interrotto, mancanza segnale) tutte le uscite vengono **forzate a livello
+basso** (override combinatorio, indipendente dai comandi CAN). Il ripristino e'
+**automatico** al ritorno del consenso. Prevedere pull-down esterni sui due
+ingressi cosi' che la perdita di segnale porti allo stato sicuro.
 
 ## Esempi (NODE = 0001)
 

@@ -39,6 +39,12 @@ entity can_ioexpander_top is
     can_txd   : out   std_logic;
 
     node_addr : in    std_logic_vector(3 downto 0);
+
+    -- funzione di sicurezza: due canali di consenso attivi-alti.
+    -- Se uno qualsiasi va basso, le uscite sono forzate a livello basso.
+    safe_ch1  : in    std_logic;
+    safe_ch2  : in    std_logic;
+
     io        : inout std_logic_vector(31 downto 0);
 
     led_error : out   std_logic
@@ -101,6 +107,8 @@ begin
       clk        => clk,
       rst_n      => rst_n,
       node_addr  => node_addr,
+      safe_ch1   => safe_ch1,
+      safe_ch2   => safe_ch2,
       rx_valid   => rx_valid,
       rx_id      => rx_id,
       rx_rtr     => rx_rtr,

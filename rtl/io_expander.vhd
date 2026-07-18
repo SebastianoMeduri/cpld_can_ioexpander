@@ -18,6 +18,15 @@
 --
 -- Lo STATUS viene inviato: su richiesta (REQUEST) e automaticamente al variare
 -- di un qualunque pin configurato come ingresso.
+--
+-- FUNZIONE DI SICUREZZA (doppio canale fail-safe):
+--   due ingressi di consenso attivi-alti (safe_ch1, safe_ch2). Le uscite sono
+--   abilitate solo se ENTRAMBI sono alti (safe_ok). Se uno qualsiasi va basso
+--   (E-stop, filo interrotto, mancanza segnale) TUTTE le uscite vengono forzate
+--   a livello basso, indipendentemente dai comandi CAN. Ripristino automatico:
+--   le uscite tornano ai valori comandati appena il consenso ritorna. Ogni
+--   transizione della sicurezza genera una trama STATUS verso l'host.
+--   NB: prevedere pull-down esterni sui due ingressi (loss-of-signal -> stop).
 --------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
@@ -28,6 +37,10 @@ entity io_expander is
     clk        : in    std_logic;
     rst_n      : in    std_logic;
     node_addr  : in    std_logic_vector(3 downto 0);
+
+    -- funzione di sicurezza: due canali di consenso attivi-alti
+    safe_ch1   : in    std_logic;
+    safe_ch2   : in    std_logic;
 
     -- verso il controller CAN (lato ricezione)
     rx_valid   : in    std_logic;
@@ -66,6 +79,14 @@ architecture rtl of io_expander is
   signal status_word   : std_logic_vector(31 downto 0);
   signal input_changed : std_logic;
 
+  signal outv_eff : std_logic_vector(31 downto 0);                    -- uscite effettive (con sicurezza)
+
+  -- funzione di sicurezza (doppio canale, sincronizzato a 2FF)
+  signal sf1a, sf1b : std_logic := '0';
+  signal sf2a, sf2b : std_logic := '0';
+  signal safe_ok    : std_logic := '0';   -- '1' = consenso presente (uscite abilitate)
+  signal safe_ok_d  : std_logic := '0';
+
   signal pending  : std_logic := '0';
   signal txreq    : std_logic := '0';
   signal txid_r   : std_logic_vector(10 downto 0) := (others => '0');
@@ -75,16 +96,21 @@ architecture rtl of io_expander is
 begin
 
   ----------------------------------------------------------------------------
+  -- Uscite effettive: forzate a low quando manca il consenso di sicurezza.
+  ----------------------------------------------------------------------------
+  outv_eff <= outv when safe_ok = '1' else (others => '0');
+
+  ----------------------------------------------------------------------------
   -- Pilotaggio dei pin bidirezionali: uscita se dir='1', altrimenti alta impedenza.
   ----------------------------------------------------------------------------
   gen_io : for i in 0 to 31 generate
-    io(i) <= outv(i) when dir(i) = '1' else 'Z';
+    io(i) <= outv_eff(i) when dir(i) = '1' else 'Z';
   end generate;
 
   ----------------------------------------------------------------------------
-  -- Stato riportato: per le uscite il valore pilotato, per gli ingressi il letto.
+  -- Stato riportato: per le uscite il valore effettivo, per gli ingressi il letto.
   ----------------------------------------------------------------------------
-  status_word   <= (outv and dir) or (io_in and not dir);
+  status_word   <= (outv_eff and dir) or (io_in and not dir);
   input_changed <= '1' when (io_in and not dir) /= (last_rep and not dir) else '0';
 
   -- uscite verso il controller
@@ -106,10 +132,22 @@ begin
         last_rep <= (others => '0');
         pending  <= '0';
         txreq    <= '0';
+        sf1a <= '0'; sf1b <= '0'; sf2a <= '0'; sf2b <= '0';
+        safe_ok <= '0'; safe_ok_d <= '0';
       else
         -- sincronizzazione a 2FF degli ingressi (mappa 'H'/'L' su '1'/'0')
         io_s1 <= to_x01(io);
         io_in <= io_s1;
+
+        -- sincronizzazione a 2FF dei canali di sicurezza + consenso combinato
+        sf1a <= to_x01(safe_ch1); sf1b <= sf1a;
+        sf2a <= to_x01(safe_ch2); sf2b <= sf2a;
+        safe_ok   <= sf1b and sf2b;    -- consenso solo se ENTRAMBI i canali alti
+        safe_ok_d <= safe_ok;
+        -- ogni transizione della sicurezza -> notifica STATUS
+        if safe_ok /= safe_ok_d then
+          pending <= '1';
+        end if;
 
         ----------------------------------------------------------------------
         -- Decodifica delle trame ricevute indirizzate a questo nodo

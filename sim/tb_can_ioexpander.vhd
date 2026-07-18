@@ -69,6 +69,8 @@ architecture sim of tb_can_ioexpander is
 
   -- DUT (nodo B)
   signal node_addr : std_logic_vector(3 downto 0) := "0001";
+  signal safe_ch1  : std_logic := '1';   -- consenso sicurezza (attivo alto)
+  signal safe_ch2  : std_logic := '1';
   signal io        : std_logic_vector(31 downto 0);
   signal tb_io_drv : std_logic_vector(31 downto 0) := (others => 'Z');
   signal led_err   : std_logic;
@@ -150,6 +152,8 @@ begin
       can_rxd   => b_rxd,
       can_txd   => b_txd,
       node_addr => node_addr,
+      safe_ch1  => safe_ch1,
+      safe_ch2  => safe_ch2,
       io        => io,
       led_error => led_err
     );
@@ -343,6 +347,36 @@ begin
              to_hstring(to_x01(io(31 downto 16))) & ")"
       severity failure;
     report "TB: OK trama estesa confermata (ACK) e ignorata dall'applicazione";
+
+    ------------------------------------------------------------------------
+    -- 7) Funzione di sicurezza (doppio canale fail-safe, auto-ripristino)
+    ------------------------------------------------------------------------
+    assert to_x01(io(31 downto 16)) = x"1234"
+      report "FAIL: uscite non attive prima del test sicurezza" severity failure;
+
+    report "TB: sicurezza - apro il canale 1 (safe_ch1=0)";
+    safe_ch1 <= '0';
+    wait for 12 * CLK_PERIOD;
+    assert to_x01(io(31 downto 16)) = x"0000"
+      report "FAIL: uscite non forzate a low con safe_ch1=0" severity failure;
+    report "TB: OK uscite forzate a low (canale 1)";
+    safe_ch1 <= '1';
+    wait for 12 * CLK_PERIOD;
+    assert to_x01(io(31 downto 16)) = x"1234"
+      report "FAIL: nessun auto-ripristino dopo safe_ch1" severity failure;
+    report "TB: OK auto-ripristino uscite = 0x1234";
+
+    report "TB: sicurezza - apro il canale 2 (safe_ch2=0)";
+    safe_ch2 <= '0';
+    wait for 12 * CLK_PERIOD;
+    assert to_x01(io(31 downto 16)) = x"0000"
+      report "FAIL: uscite non forzate a low con safe_ch2=0" severity failure;
+    report "TB: OK uscite forzate a low (canale 2) - ridondanza confermata";
+    safe_ch2 <= '1';
+    wait for 12 * CLK_PERIOD;
+    assert to_x01(io(31 downto 16)) = x"1234"
+      report "FAIL: nessun auto-ripristino dopo safe_ch2" severity failure;
+    report "TB: OK sicurezza fail-safe validata (auto-ripristino)";
 
     report "TB: *** TUTTI I TEST SUPERATI ***" severity note;
     sim_end <= true;

@@ -23,6 +23,8 @@ set_location_assignment PIN_23  -to {node_addr[1]}
 set_location_assignment PIN_24  -to {node_addr[2]}
 set_location_assignment PIN_27  -to {node_addr[3]}
 set_location_assignment PIN_28  -to led_error
+set_location_assignment PIN_29  -to safe_ch1        ;# sicurezza canale 1 (pull-down esterno)
+set_location_assignment PIN_30  -to safe_ch2        ;# sicurezza canale 2 (pull-down esterno)
 
 # --- io[0..31] raggruppati su pin contigui 73..111 (banchi 3 e 2) ---
 set_location_assignment PIN_73  -to {io[0]}
