@@ -13,3 +13,12 @@ work-obj*.cf
 db/
 incremental_db/
 output_files/
+
+# .NET / C# (GUI di test)
+bin/
+obj/
+
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
