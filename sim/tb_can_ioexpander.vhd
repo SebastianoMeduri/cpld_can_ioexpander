@@ -52,6 +52,13 @@ architecture sim of tb_can_ioexpander is
   signal h_rxdlc  : std_logic_vector(3 downto 0);
   signal h_rxdata : std_logic_vector(63 downto 0);
   signal h_err    : std_logic;
+  signal h_errp   : std_logic;
+  signal h_busoff : std_logic;
+  signal h_tec    : std_logic_vector(7 downto 0);
+
+  -- iniezione errore / diagnostica
+  signal force_dom : std_logic := '0';   -- forza il bus a dominante
+  signal seen_err  : std_logic := '0';   -- latch: errore rilevato
 
   -- DUT (nodo B)
   signal node_addr : std_logic_vector(3 downto 0) := "0001";
@@ -77,6 +84,7 @@ begin
   canbus <= 'H';
   canbus <= '0' when a_txd = '0' else 'Z';
   canbus <= '0' when b_txd = '0' else 'Z';
+  canbus <= '0' when force_dom = '1' else 'Z';   -- iniezione errore
   a_rxd  <= to_x01(canbus);
   b_rxd  <= to_x01(canbus);
 
@@ -106,8 +114,21 @@ begin
       rx_rtr     => h_rxrtr,
       rx_dlc     => h_rxdlc,
       rx_data    => h_rxdata,
-      error_flag => h_err
+      error_flag    => h_err,
+      error_passive => h_errp,
+      bus_off       => h_busoff,
+      tec_value     => h_tec
     );
+
+  -- latch dell'evento di errore rilevato dal nodo host
+  errlatch : process (clk)
+  begin
+    if rising_edge(clk) then
+      if h_err = '1' then
+        seen_err <= '1';
+      end if;
+    end if;
+  end process;
 
   ----------------------------------------------------------------------------
   -- Nodo B: DUT (I/O expander)
@@ -197,6 +218,28 @@ begin
              to_hstring(h_rxdata(63 downto 32))
       severity failure;
     report "TB: OK STATUS = 0xBEEF0001";
+
+    ------------------------------------------------------------------------
+    -- 5) iniezione bit/stuff error e verifica del recupero
+    ------------------------------------------------------------------------
+    report "TB: iniezione errore (bus forzato dominante per 8 bit)";
+    force_dom <= '1';
+    wait for 8 * BIT_TIME;
+    force_dom <= '0';
+    wait for 30 * BIT_TIME;         -- attende error frame + recupero a idle
+
+    assert seen_err = '1'
+      report "FAIL: l'errore iniettato non e' stato rilevato" severity failure;
+    report "TB: OK errore rilevato dal MAC (error frame emesso)";
+
+    -- recupero: una nuova trama deve essere trasmessa e applicata
+    report "TB: verifica recupero post-errore (OUTPUT = 0x1234)";
+    host_send(ID_OUTPUT, "0100", x"12340000" & x"00000000");
+    wait for 5 * BIT_TIME;
+    assert to_x01(io(31 downto 16)) = x"1234"
+      report "FAIL: nessun recupero dopo l'errore, uscite = 0x" &
+             to_hstring(to_x01(io(31 downto 16))) severity failure;
+    report "TB: OK recupero dopo errore, uscite = 0x1234";
 
     report "TB: *** TUTTI I TEST SUPERATI ***" severity note;
     sim_end <= true;

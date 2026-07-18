@@ -61,11 +61,15 @@ architecture rtl of can_ioexpander_top is
   signal rx_dlc     : std_logic_vector(3 downto 0);
   signal rx_data    : std_logic_vector(63 downto 0);
 
-  signal err        : std_logic;
+  signal err          : std_logic;
+  signal err_passive  : std_logic;
+  signal bus_off      : std_logic;
+  signal tec_value    : std_logic_vector(7 downto 0);
 
 begin
 
-  led_error <= err;
+  -- LED acceso su fault persistente (error-passive o bus-off)
+  led_error <= err_passive or bus_off;
 
   u_can : entity work.can_controller
     generic map (BRP => BRP, TSEG1 => TSEG1, TSEG2 => TSEG2, SJW => SJW)
@@ -86,7 +90,10 @@ begin
       rx_rtr     => rx_rtr,
       rx_dlc     => rx_dlc,
       rx_data    => rx_data,
-      error_flag => err
+      error_flag    => err,
+      error_passive => err_passive,
+      bus_off       => bus_off,
+      tec_value     => tec_value
     );
 
   u_io : entity work.io_expander

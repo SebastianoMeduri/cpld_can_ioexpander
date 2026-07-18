@@ -41,7 +41,11 @@ entity can_controller is
     rx_dlc     : out std_logic_vector(3 downto 0);
     rx_data    : out std_logic_vector(63 downto 0);
 
-    error_flag : out std_logic
+    -- stato / diagnostica
+    error_flag    : out std_logic;
+    error_passive : out std_logic;
+    bus_off       : out std_logic;
+    tec_value     : out std_logic_vector(7 downto 0)
   );
 end entity can_controller;
 
@@ -101,7 +105,10 @@ begin
       rx_rtr       => rx_rtr,
       rx_dlc       => rx_dlc,
       rx_data      => rx_data,
-      error_flag   => error_flag
+      error_flag    => error_flag,
+      error_passive => error_passive,
+      bus_off       => bus_off,
+      tec_value     => tec_value
     );
 
 end architecture rtl;

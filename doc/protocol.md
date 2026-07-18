@@ -88,17 +88,40 @@ ID=0x110  DLC=4  DATA=BE EF 00 00
 ID=0x310  DLC=0
 ```
 
-## Limitazioni note
+## Gestione errori e fault confinement
 
-Il core implementa il livello MAC di CAN 2.0A per il caso nominale
-(nessun errore di bus) piu':
+Il core implementa il livello MAC di CAN 2.0A con:
 
 * bit stuffing / de-stuffing;
-* monitoraggio del bus, perdita di arbitraggio, bit error;
+* monitoraggio del bus, perdita di arbitraggio, **bit error**;
+* rilevazione di **stuff error**, **form error** (delimitatori e EOF),
+  **ACK error** (trasmettitore) e **CRC error** (ricevitore);
+* **error frame** conformi: flag *attivo* (6 bit dominanti) se error-active,
+  flag *passivo* (6 bit recessivi) se error-passive, seguito da error
+  delimiter (8 bit recessivi);
+* **fault confinement** (ISO 11898-1, semplificato): contatori TEC/REC, stati
+  **error-active / error-passive / bus-off** e recupero da bus-off dopo 128
+  sequenze di 11 bit recessivi;
 * ACK e ritrasmissione automatica in assenza di conferma.
 
-**Non** implementati (semplificazioni rispetto a ISO 11898-1):
-identificatore esteso 29 bit (CAN 2.0B), contatori d'errore TEC/REC e stato
-error-passive / bus-off, overload frame, filtri hardware di accettazione
-multipli. In caso di stuff/bit/form error il nodo emette un error flag
-dominante e torna in idle.
+Segnali di diagnostica esposti dal controller: `error_flag` (impulso),
+`error_passive`, `bus_off`, `tec_value[7:0]`. Sul top level il LED
+`led_error` si accende su fault persistente (error-passive o bus-off).
+
+### Regole TEC/REC (semplificate)
+
+| Evento | Azione |
+|--------|--------|
+| Errore in trasmissione (bit/ACK/form) | TEC += 8 |
+| Errore in ricezione (stuff/form/CRC)  | REC += 1 |
+| Trasmissione confermata (ACK)         | TEC -= 1 |
+| Ricezione valida                      | REC -= 1 |
+| TEC > 127 oppure REC > 127            | → error-passive |
+| TEC > 255                             | → bus-off |
+
+### Limitazioni residue
+
+**Non** implementati (semplificazioni rispetto a ISO 11898-1): identificatore
+esteso 29 bit (CAN 2.0B), overload frame, sospensione di trasmissione (8 bit)
+per i nodi error-passive, regole complete di eccezione sugli incrementi
+TEC/REC, filtri hardware di accettazione multipli.

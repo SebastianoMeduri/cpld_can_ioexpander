@@ -176,6 +176,7 @@
       <div class="chip"><span class="k">Bitrate</span><span class="v">500 kbit/s</span></div>
       <div class="chip"><span class="k">Logic</span><span class="v">708 / 1270</span></div>
       <div class="chip"><span class="k">I/O util.</span><span class="v">41 pin</span></div>
+      <div class="chip"><span class="k">Fault conf.</span><span class="v">TEC/REC</span></div>
       <div class="chip pass"><span class="k">Sintesi</span><span class="v">0 errori</span></div>
       <div class="chip pass"><span class="k">Simulazione</span><span class="v">PASS</span></div>
     </div>
@@ -213,7 +214,7 @@
           <rect x="160" y="128" width="210" height="62" rx="7" fill="var(--surface)" stroke="var(--line-2)"/>
           <text x="172" y="150" font-size="12.5">can_mac (FSM TX/RX)</text>
           <text x="172" y="167" class="svg-mut" font-size="10.5">stuffing · CRC-15 · ACK</text>
-          <text x="172" y="182" class="svg-mut" font-size="10.5">arbitraggio · IFS</text>
+          <text x="172" y="182" class="svg-mut" font-size="10.5">arbitraggio · error frame · TEC/REC</text>
           <!-- io_expander -->
           <rect x="440" y="55" width="210" height="130" rx="10" fill="var(--surface-2)" stroke="var(--accent)" stroke-width="1.5"/>
           <text x="460" y="78" font-size="13" font-weight="700" fill="var(--accent-strong)">io_expander</text>
@@ -643,11 +644,13 @@
           <tr><td class="mono">477.1 µs</td><td>Verifica uscite del DUT</td><td><b style="color:var(--good)">io[31:16] = 0xBEEF ✓</b></td></tr>
           <tr><td class="mono">477.1 µs</td><td>Forzato ingresso io[0] = 1</td><td>—</td></tr>
           <tr><td class="mono">652.5 µs</td><td>DUT invia STATUS spontaneo, ricevuto dall'host</td><td><b style="color:var(--good)">0xBEEF0001 ✓</b></td></tr>
-          <tr><td class="mono">652.5 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
+          <tr><td class="mono">728.5 µs</td><td>Iniezione bit/stuff error (bus forzato dominante)</td><td><b style="color:var(--good)">error frame ✓</b></td></tr>
+          <tr><td class="mono">951.7 µs</td><td>Recupero: nuova OUTPUT applicata dopo l'errore</td><td><b style="color:var(--good)">io[31:16] = 0x1234 ✓</b></td></tr>
+          <tr><td class="mono">951.7 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
         </tbody>
       </table>
     </div>
-    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica.</p>
+    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica · <b>rilevazione errore, error frame e recupero (fault confinement)</b>.</p>
   </section>
 
   <!-- ============ 10. NOTE ============ -->
@@ -659,7 +662,7 @@
         <h4>Limitazioni del core</h4>
         <ul>
           <li>Solo <b>CAN 2.0A</b> (ID standard 11 bit); l'ID esteso 29 bit non è supportato.</li>
-          <li>Gestione errori <b>semplificata</b>: error flag dominante + ritorno a idle. Niente contatori TEC/REC, stati error-passive/bus-off, overload frame.</li>
+          <li><b>Fault confinement presente</b> (TEC/REC, error-active/passive/bus-off + recupero, error frame attivi/passivi). Residui: no overload frame, no suspend-transmission 8-bit, regole TEC/REC ridotte.</li>
           <li>Un solo buffer TX / RX (una trama per volta), sufficiente per l'applicazione I/O.</li>
         </ul>
       </div>

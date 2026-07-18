@@ -10,6 +10,9 @@ configurabili singolarmente come ingresso o uscita e comandabili via CAN.
 - Controller **CAN 2.0A** (identificatore standard 11 bit) scritto in VHDL:
   bit timing, bit stuffing/de-stuffing, CRC-15, arbitraggio, ACK,
   ritrasmissione automatica.
+- **Gestione errori e fault confinement** (ISO 11898-1, semplificato): bit/stuff/
+  form/ACK/CRC error, error frame attivi e passivi, contatori TEC/REC e stati
+  error-active / error-passive / bus-off con recupero.
 - **32 pin bidirezionali**, direzione configurabile per singolo pin.
 - Invio dello stato **su richiesta** e **automatico** al variare di un ingresso.
 - Default: **500 kbit/s** con clock a **20 MHz** (parametrizzabile via `generic`).
@@ -89,7 +92,10 @@ scelto e mappare i pin `io[31:0]` su I/O bidirezionali reali.
 
 ## Stato dei test
 
-Il codice e' stato scritto per essere sintetizzabile e simulabile con GHDL, ma
-in questo ambiente non era disponibile un simulatore VHDL: la verifica funzionale
-va eseguita lanciando gli script in `sim/`. Le limitazioni note del core sono
-elencate in [doc/protocol.md](doc/protocol.md).
+- **Sintesi/fitting** (Quartus Prime Lite 21.1, MAX V 5M1270ZT144): 0 errori,
+  timing rispettato, pinout assegnato.
+- **Simulazione funzionale** (GHDL): il testbench in `sim/` valida
+  CONFIG → OUTPUT → STATUS **e** l'iniezione di un errore con relativo recupero
+  (error frame + ritorno operativo). Tutti i test superati.
+
+Le limitazioni residue del core sono elencate in [doc/protocol.md](doc/protocol.md).
