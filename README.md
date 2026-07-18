@@ -13,6 +13,10 @@ configurabili singolarmente come ingresso o uscita e comandabili via CAN.
 - **Gestione errori e fault confinement** (ISO 11898-1, semplificato): bit/stuff/
   form/ACK/CRC error, error frame attivi e passivi, contatori TEC/REC e stati
   error-active / error-passive / bus-off con recupero.
+- **CAN 2.0B passive**: tollera e conferma le trame a identificatore esteso
+  (29 bit) senza consegnarle all'applicazione (compatibilita' reti miste).
+- Risincronizzazione con correzione dell'errore di fase in entrambe le direzioni
+  (tolleranza di clock).
 - **32 pin bidirezionali**, direzione configurabile per singolo pin.
 - Invio dello stato **su richiesta** e **automatico** al variare di un ingresso.
 - Default: **500 kbit/s** con clock a **20 MHz** (parametrizzabile via `generic`).
@@ -95,7 +99,8 @@ scelto e mappare i pin `io[31:0]` su I/O bidirezionali reali.
 - **Sintesi/fitting** (Quartus Prime Lite 21.1, MAX V 5M1270ZT144): 0 errori,
   timing rispettato, pinout assegnato.
 - **Simulazione funzionale** (GHDL): il testbench in `sim/` valida
-  CONFIG → OUTPUT → STATUS **e** l'iniezione di un errore con relativo recupero
-  (error frame + ritorno operativo). Tutti i test superati.
+  CONFIG → OUTPUT → STATUS, l'iniezione di un errore con relativo recupero
+  (error frame + ritorno operativo) e la tolleranza di una trama a
+  identificatore esteso (2.0B passive). Tutti i test superati.
 
 Le limitazioni residue del core sono elencate in [doc/protocol.md](doc/protocol.md).

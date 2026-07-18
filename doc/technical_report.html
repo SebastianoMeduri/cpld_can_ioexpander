@@ -646,11 +646,12 @@
           <tr><td class="mono">652.5 µs</td><td>DUT invia STATUS spontaneo, ricevuto dall'host</td><td><b style="color:var(--good)">0xBEEF0001 ✓</b></td></tr>
           <tr><td class="mono">728.5 µs</td><td>Iniezione bit/stuff error (bus forzato dominante)</td><td><b style="color:var(--good)">error frame ✓</b></td></tr>
           <tr><td class="mono">951.7 µs</td><td>Recupero: nuova OUTPUT applicata dopo l'errore</td><td><b style="color:var(--good)">io[31:16] = 0x1234 ✓</b></td></tr>
-          <tr><td class="mono">951.7 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
+          <tr><td class="mono">1137.8 µs</td><td>Trama a ID esteso 29 bit (2.0B passive)</td><td><b style="color:var(--good)">ACK + ignorata ✓</b></td></tr>
+          <tr><td class="mono">1137.8 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
         </tbody>
       </table>
     </div>
-    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica · <b>rilevazione errore, error frame e recupero (fault confinement)</b>.</p>
+    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica · <b>rilevazione errore, error frame e recupero (fault confinement)</b> · <b>tolleranza trame estese 2.0B passive</b>.</p>
   </section>
 
   <!-- ============ 10. NOTE ============ -->
@@ -661,7 +662,7 @@
       <div class="card">
         <h4>Limitazioni del core</h4>
         <ul>
-          <li>Solo <b>CAN 2.0A</b> (ID standard 11 bit); l'ID esteso 29 bit non è supportato.</li>
+          <li><b>CAN 2.0A</b> (ID 11 bit) + <b>2.0B passive</b>: le trame estese 29 bit sono tollerate e confermate ma non trasmesse. La trasmissione di ID estesi non è supportata.</li>
           <li><b>Fault confinement presente</b> (TEC/REC, error-active/passive/bus-off + recupero, error frame attivi/passivi). Residui: no overload frame, no suspend-transmission 8-bit, regole TEC/REC ridotte.</li>
           <li>Un solo buffer TX / RX (una trama per volta), sufficiente per l'applicazione I/O.</li>
         </ul>

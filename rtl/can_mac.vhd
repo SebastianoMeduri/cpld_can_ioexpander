@@ -17,6 +17,9 @@
 --   * fault confinement ISO 11898-1 (semplificato): contatori TEC/REC, stati
 --     error-active / error-passive / bus-off e recupero da bus-off dopo
 --     128 sequenze di 11 bit recessivi.
+--   * CAN 2.0B passive: le trame a identificatore esteso (29 bit) vengono
+--     seguite e confermate (ACK) ma non consegnate all'applicazione, cosi'
+--     da non disturbare reti miste 11/29 bit.
 --   * ritrasmissione automatica finche' tx_request resta alto.
 --
 -- Convenzione livelli: '0' = dominante, '1' = recessivo.
@@ -72,9 +75,10 @@ end entity can_mac;
 
 architecture rtl of can_mac is
 
-  type state_t is (ST_IDLE, ST_ID, ST_RTR, ST_IDE, ST_R0, ST_DLC,
-                   ST_DATA, ST_CRC, ST_CRC_DELIM, ST_ACK, ST_ACK_DELIM,
-                   ST_EOF, ST_IFS, ST_ERR_FLAG, ST_ERR_DELIM, ST_BUSOFF);
+  type state_t is (ST_IDLE, ST_ID, ST_RTR, ST_IDE, ST_EXTID, ST_RTR2, ST_R1,
+                   ST_R0, ST_DLC, ST_DATA, ST_CRC, ST_CRC_DELIM, ST_ACK,
+                   ST_ACK_DELIM, ST_EOF, ST_IFS, ST_ERR_FLAG, ST_ERR_DELIM,
+                   ST_BUSOFF);
 
   type errstate_t is (ES_ACTIVE, ES_PASSIVE, ES_BUSOFF);
 
@@ -96,6 +100,7 @@ architecture rtl of can_mac is
   signal rxl_crc  : std_logic_vector(14 downto 0) := (others => '0');
   signal databits : integer range 0 to 64 := 0;
   signal rx_crc_ok: std_logic := '0';
+  signal frame_ext: std_logic := '0';   -- '1' = trama a identificatore esteso (29 bit)
 
   -- registri di trasmissione
   signal txl_id   : std_logic_vector(10 downto 0) := (others => '0');
@@ -318,6 +323,7 @@ begin
                   rx_crc_ok       <= '0';
                   tx_ack_ok       <= '0';
                   rxl_rtr         <= '0';
+                  frame_ext       <= '0';
                   state           <= ST_ID;
                   bitpos          <= 0;
                 end if;
@@ -335,6 +341,28 @@ begin
                 state <= ST_IDE; bitpos <= 0;
 
               when ST_IDE =>
+                -- IDE = 0 -> formato standard 2.0A; IDE = 1 -> esteso 2.0B
+                if curbit = '1' then
+                  frame_ext <= '1';
+                  state <= ST_EXTID; bitpos <= 0;   -- 2.0B passive: si segue e si conferma
+                else
+                  frame_ext <= '0';
+                  state <= ST_R0; bitpos <= 0;
+                end if;
+
+              when ST_EXTID =>
+                -- 18 bit di ID esteso (non memorizzati: solo tollerati)
+                if bitpos = 17 then
+                  state <= ST_RTR2; bitpos <= 0;
+                else
+                  bitpos <= bitpos + 1;
+                end if;
+
+              when ST_RTR2 =>
+                rxl_rtr <= curbit;          -- RTR reale del formato esteso
+                state <= ST_R1; bitpos <= 0;
+
+              when ST_R1 =>
                 state <= ST_R0; bitpos <= 0;
 
               when ST_R0 =>
@@ -423,7 +451,11 @@ begin
                     end if;
                     is_tx <= '0';
                   elsif rx_crc_ok = '1' then
-                    rx_valid <= '1';
+                    -- le trame estese (2.0B) vengono confermate ma non
+                    -- consegnate all'applicazione (solo 11 bit supportati)
+                    if frame_ext = '0' then
+                      rx_valid <= '1';
+                    end if;
                     if rec > 0 then rec <= rec - 1; end if;     -- successo rx
                   end if;
                   state <= ST_IDLE; bitpos <= 0;

@@ -4,7 +4,7 @@
 
 | Parametro        | Valore di default                     |
 |------------------|---------------------------------------|
-| Standard         | CAN 2.0A (identificatore 11 bit)      |
+| Standard         | CAN 2.0A (11 bit) + 2.0B passive (tollera trame estese 29 bit) |
 | Bitrate          | 500 kbit/s                            |
 | Clock di sistema | 20 MHz                                |
 | Bit timing       | BRP=2, TSEG1=15, TSEG2=4, SJW=3 (20 Tq/bit, sample point 80%) |
@@ -102,7 +102,12 @@ Il core implementa il livello MAC di CAN 2.0A con:
 * **fault confinement** (ISO 11898-1, semplificato): contatori TEC/REC, stati
   **error-active / error-passive / bus-off** e recupero da bus-off dopo 128
   sequenze di 11 bit recessivi;
-* ACK e ritrasmissione automatica in assenza di conferma.
+* ACK e ritrasmissione automatica in assenza di conferma;
+* **CAN 2.0B passive**: le trame a identificatore esteso (29 bit) vengono
+  seguite e confermate con ACK ma non consegnate all'applicazione — così un
+  nodo 11-bit non disturba una rete mista 11/29 bit;
+* **risincronizzazione** con correzione dell'errore di fase in entrambe le
+  direzioni (TSEG1/TSEG2, limitata a SJW) per la tolleranza di clock.
 
 Segnali di diagnostica esposti dal controller: `error_flag` (impulso),
 `error_passive`, `bus_off`, `tec_value[7:0]`. Sul top level il LED
@@ -121,7 +126,8 @@ Segnali di diagnostica esposti dal controller: `error_flag` (impulso),
 
 ### Limitazioni residue
 
-**Non** implementati (semplificazioni rispetto a ISO 11898-1): identificatore
-esteso 29 bit (CAN 2.0B), overload frame, sospensione di trasmissione (8 bit)
-per i nodi error-passive, regole complete di eccezione sugli incrementi
-TEC/REC, filtri hardware di accettazione multipli.
+**Non** implementati (semplificazioni rispetto a ISO 11898-1): **trasmissione**
+di trame a identificatore esteso 29 bit (la ricezione 2.0B passive c'e'),
+overload frame, sospensione di trasmissione (8 bit) per i nodi error-passive,
+regole complete di eccezione sugli incrementi TEC/REC, filtri hardware di
+accettazione multipli.

@@ -72,12 +72,26 @@ begin
           tqcnt <= 0;
         elsif edge and bus_idle = '0' and tqcnt /= 0 then
           --------------------------------------------------------------
-          -- Resync soft (solo errore di fase positivo), limitato a SJW.
+          -- Resync soft limitata a SJW, tenendo conto del segno
+          -- dell'errore di fase (posizione dell'edge nel bit).
           --------------------------------------------------------------
-          if tqcnt <= SJW then
-            tqcnt <= 0;
+          if tqcnt <= TSEG1 then
+            -- edge in SYNC/TSEG1 (errore positivo): allunga il bit
+            -- riducendo il conteggio verso il sync, ritardando il sample.
+            if tqcnt <= SJW then
+              tqcnt <= 0;
+            else
+              tqcnt <= tqcnt - SJW;
+            end if;
           else
-            tqcnt <= tqcnt - SJW;
+            -- edge in TSEG2 (errore negativo): accorcia il bit anticipando
+            -- il bordo. Se l'edge e' entro SJW dal wrap, allinea subito.
+            if (NTQ - tqcnt) <= SJW then
+              tqcnt    <= 0;
+              tx_point <= '1';
+            else
+              tqcnt <= tqcnt + SJW;
+            end if;
           end if;
           presc <= 0;
         else
