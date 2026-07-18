@@ -1,0 +1,15 @@
+# Artefatti di simulazione
+sim/work/
+*.ghw
+*.vcd
+*.cf
+*.o
+work-obj*.cf
+
+# Tool FPGA/CPLD
+*.jou
+*.log
+*.bak
+db/
+incremental_db/
+output_files/
