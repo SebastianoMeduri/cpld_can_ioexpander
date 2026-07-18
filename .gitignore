@@ -17,6 +17,8 @@ output_files/
 # .NET / C# (GUI di test)
 bin/
 obj/
+.vs/
+*.user
 
 # ESP-IDF
 build/
