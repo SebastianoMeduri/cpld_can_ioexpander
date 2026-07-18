@@ -1,0 +1,7 @@
+QUARTUS_VERSION = "20.1"
+DATE = "2026/07/18"
+
+# Progetto Quartus per l'I/O expander su CAN bus.
+# Revisione = nome del file .qsf associato.
+
+PROJECT_REVISION = "can_ioexpander"

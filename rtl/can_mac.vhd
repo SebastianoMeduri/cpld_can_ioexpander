@@ -81,7 +81,6 @@ architecture rtl of can_mac is
   -- registri di ricezione
   signal rxl_id   : std_logic_vector(10 downto 0) := (others => '0');
   signal rxl_rtr  : std_logic := '0';
-  signal rxl_ide  : std_logic := '0';
   signal rxl_dlc  : std_logic_vector(3 downto 0) := (others => '0');
   signal rxl_data : std_logic_vector(63 downto 0) := (others => '0');
   signal rxl_crc  : std_logic_vector(14 downto 0) := (others => '0');
@@ -267,7 +266,6 @@ begin
                   rx_crc_ok       <= '0';
                   tx_ack_ok       <= '0';
                   rxl_rtr         <= '0';
-                  rxl_ide         <= '0';
                   state           <= ST_ID;
                   bitpos          <= 0;
                 end if;
@@ -285,7 +283,7 @@ begin
                 state <= ST_IDE; bitpos <= 0;
 
               when ST_IDE =>
-                rxl_ide <= curbit;
+                -- bit IDE consumato (supportato solo il formato standard 2.0A)
                 state <= ST_R0; bitpos <= 0;
 
               when ST_R0 =>
