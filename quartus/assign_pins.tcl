@@ -26,6 +26,24 @@ set_location_assignment PIN_28  -to led_error
 set_location_assignment PIN_29  -to safe_ch1        ;# sicurezza canale 1 (pull-down esterno)
 set_location_assignment PIN_30  -to safe_ch2        ;# sicurezza canale 2 (pull-down esterno)
 
+# --- 8 encoder incrementali A/B (banco 4) ---
+set_location_assignment PIN_37  -to {enc_a[0]}
+set_location_assignment PIN_38  -to {enc_b[0]}
+set_location_assignment PIN_39  -to {enc_a[1]}
+set_location_assignment PIN_40  -to {enc_b[1]}
+set_location_assignment PIN_41  -to {enc_a[2]}
+set_location_assignment PIN_42  -to {enc_b[2]}
+set_location_assignment PIN_43  -to {enc_a[3]}
+set_location_assignment PIN_44  -to {enc_b[3]}
+set_location_assignment PIN_45  -to {enc_a[4]}
+set_location_assignment PIN_48  -to {enc_b[4]}
+set_location_assignment PIN_49  -to {enc_a[5]}
+set_location_assignment PIN_50  -to {enc_b[5]}
+set_location_assignment PIN_51  -to {enc_a[6]}
+set_location_assignment PIN_52  -to {enc_b[6]}
+set_location_assignment PIN_53  -to {enc_a[7]}
+set_location_assignment PIN_55  -to {enc_b[7]}
+
 # --- io[0..31] raggruppati su pin contigui 73..111 (banchi 3 e 2) ---
 set_location_assignment PIN_73  -to {io[0]}
 set_location_assignment PIN_74  -to {io[1]}

@@ -167,15 +167,17 @@
     <p class="kicker">Report Tecnico · Sviluppo PCB</p>
     <h1>I/O Expander su CAN Bus</h1>
     <p class="part">Intel MAX V · 5M1270ZT144C4 · TQFP-144 · CAN 2.0A @ 500 kbit/s</p>
-    <p class="lede">Controller CAN 2.0A e 32 I/O bidirezionali interamente in VHDL, sintetizzato e validato in simulazione. Questo documento raccoglie tutto il necessario per il progetto della scheda: pinout, alimentazioni, componenti esterni, temporizzazione e risultati funzionali.</p>
+    <p class="lede">Controller CAN 2.0A, 32 I/O bidirezionali, funzione di sicurezza a doppio canale e 8 encoder incrementali, interamente in VHDL, sintetizzato e validato in simulazione. Questo documento raccoglie tutto il necessario per il progetto della scheda: pinout, alimentazioni, componenti esterni, temporizzazione e risultati funzionali.</p>
 
     <div class="specbar">
       <div class="chip"><span class="k">Device</span><span class="v">5M1270Z</span></div>
       <div class="chip"><span class="k">Package</span><span class="v">TQFP-144</span></div>
       <div class="chip"><span class="k">Clock</span><span class="v">20 MHz</span></div>
       <div class="chip"><span class="k">Bitrate</span><span class="v">500 kbit/s</span></div>
-      <div class="chip"><span class="k">Logic</span><span class="v">708 / 1270</span></div>
-      <div class="chip"><span class="k">I/O util.</span><span class="v">43 pin</span></div>
+      <div class="chip"><span class="k">Logic</span><span class="v">~99% (fit)</span></div>
+      <div class="chip"><span class="k">I/O util.</span><span class="v">59 pin</span></div>
+      <div class="chip"><span class="k">Encoder</span><span class="v">8 × A/B</span></div>
+      <div class="chip"><span class="k">Sicurezza</span><span class="v">2 canali</span></div>
       <div class="chip"><span class="k">Fault conf.</span><span class="v">TEC/REC</span></div>
       <div class="chip pass"><span class="k">Sintesi</span><span class="v">0 errori</span></div>
       <div class="chip pass"><span class="k">Simulazione</span><span class="v">PASS</span></div>
@@ -266,10 +268,10 @@
       </div>
       <div class="card">
         <h4>Occupazione (post-fit)</h4>
-        <div class="meter"><span class="lab">Logic cells</span><span class="track"><span class="fill acc" style="width:55.7%"></span></span><span class="val">708 / 1270</span></div>
-        <div class="meter"><span class="lab">Pin I/O</span><span class="track"><span class="fill acc" style="width:38%"></span></span><span class="val">43 / 114</span></div>
+        <div class="meter"><span class="lab">Logic cells *</span><span class="track"><span class="fill acc" style="width:99%"></span></span><span class="val">~99% *</span></div>
+        <div class="meter"><span class="lab">Pin I/O</span><span class="track"><span class="fill acc" style="width:52%"></span></span><span class="val">59 / 114</span></div>
         <div class="meter"><span class="lab">Interconnessioni</span><span class="track"><span class="fill acc" style="width:24%"></span></span><span class="val">~24 % med.</span></div>
-        <p class="muted" style="font-size:12.5px;margin:12px 0 0">Ampio margine per le future espansioni (USB→UART, SPI EEPROM).</p>
+        <p class="muted" style="font-size:12.5px;margin:12px 0 0"><b>*</b> Con tutte le funzioni la prima sintesi era al <b>103%</b> (non entrava). Dopo le ottimizzazioni (latch TX rimossi nel MAC; sync I/O a 1FF che abilita il <i>register packing</i> negli IOE) la compilazione <b>ENTRA</b>: Fitter ok, timing rispettato, ~99% (leggere il valore esatto nel fit report). Margine minimo — per headroom vedere le riduzioni in fondo.</p>
       </div>
     </div>
 
@@ -470,6 +472,7 @@
     </div>
     <div class="note warn"><b>Ingressi non pilotati.</b> I pin usati come ingresso vanno provvisti di <b>resistori di pull</b> esterni (o di una sorgente che li piloti sempre): al reset la direzione di default è ingresso/alta impedenza e i CPLD non tollerano ingressi flottanti.</div>
     <div class="note"><b>Funzione di sicurezza (doppio canale fail-safe).</b> <code>safe_ch1</code> e <code>safe_ch2</code> sono consensi attivi-alti: le uscite sono abilitate solo se <b>entrambi</b> sono alti. Se uno qualsiasi va basso (E-stop, filo interrotto, mancanza segnale) <b>tutte le uscite vengono forzate a livello basso</b> con override combinatorio, indipendentemente dai comandi CAN; il ripristino è automatico al ritorno del consenso e ogni transizione genera una trama STATUS. Usare <b>pull-down esterni</b> così che la perdita di segnale porti allo stato sicuro.</div>
+    <div class="note"><b>8 encoder incrementali (quadratura A/B).</b> Ingressi <code>enc_a[7:0]</code> / <code>enc_b[7:0]</code> su <b>banco 4, PIN 37–55</b> (coppie A/B adiacenti). Decodifica x4, contatori 16-bit con segno, trasmissione periodica su CAN (2 trame ENC_DATA, periodo configurabile via comando) e azzeramento via comando. Per encoder con canale di indice Z servirebbero pin aggiuntivi (non implementato).</div>
   </section>
 
   <!-- ============ 7. ALIMENTAZIONE ============ -->
@@ -652,11 +655,13 @@
           <tr><td class="mono">1137.8 µs</td><td>Trama a ID esteso 29 bit (2.0B passive)</td><td><b style="color:var(--good)">ACK + ignorata ✓</b></td></tr>
           <tr><td class="mono">1279 µs</td><td>Sicurezza: apertura canale 1 → uscite forzate low</td><td><b style="color:var(--good)">io = 0x0000 ✓</b></td></tr>
           <tr><td class="mono">1280 µs</td><td>Ripristino + apertura canale 2 (ridondanza)</td><td><b style="color:var(--good)">low + recover ✓</b></td></tr>
-          <tr><td class="mono">1281 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
+          <tr><td class="mono">1990 µs</td><td>Encoder 0: 8 impulsi avanti → letto via ENC_DATA</td><td><b style="color:var(--good)">enc0 = +8 ✓</b></td></tr>
+          <tr><td class="mono">2756 µs</td><td>ENC_RESET encoder 0 → conteggio azzerato</td><td><b style="color:var(--good)">enc0 = 0 ✓</b></td></tr>
+          <tr><td class="mono">2756 µs</td><td colspan="2"><b style="color:var(--good)">*** TUTTI I TEST SUPERATI *** (run_exit = 0)</b></td></tr>
         </tbody>
       </table>
     </div>
-    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica · <b>rilevazione errore, error frame e recupero (fault confinement)</b> · <b>tolleranza trame estese 2.0B passive</b> · <b>funzione di sicurezza a doppio canale (uscite a low, auto-ripristino)</b>.</p>
+    <p class="muted" style="font-size:13px">Coperto: SOF · arbitraggio · campo controllo · dati · CRC-15 · bit stuffing/de-stuffing · ACK · EOF · sincronizzazione bit-timing tra nodi indipendenti · CONFIG/OUTPUT/STATUS + notifica automatica · <b>rilevazione errore, error frame e recupero (fault confinement)</b> · <b>tolleranza trame estese 2.0B passive</b> · <b>funzione di sicurezza a doppio canale (uscite a low, auto-ripristino)</b> · <b>8 encoder in quadratura (conteggio, TX periodica, azzeramento)</b>.</p>
   </section>
 
   <!-- ============ 10. NOTE ============ -->
@@ -681,7 +686,8 @@
         </ul>
       </div>
     </div>
-    <div class="note"><b>Stato di maturità.</b> Lato logica il progetto è completo: sintesi 0 errori, timing rispettato, pinout fissato e simulazione funzionale superata. I passi rimanenti sono di scheda (transceiver, alimentazioni, connettori, JTAG).</div>
+    <div class="note warn"><b>Occupazione al limite.</b> Con tutte le funzioni il 5M1270 (il piu' grande MAX V in TQFP-144) e' quasi pieno. Se dopo le ottimizzazioni il Fitter resta &gt;100%, opzioni in ordine di impatto: (1) contatori encoder a 12 bit (−32 LE), (2) rimuovere l'auto-STATUS su cambio ingresso / registro <code>last_rep</code> (−32 LE), (3) capture RX a shift-register, (4) meno I/O o meno encoder, (5) device piu' grande in package diverso (es. MAX 10, richiede redesign scheda).</div>
+    <div class="note"><b>Stato di maturità.</b> Lato logica il progetto e' funzionalmente completo e validato in simulazione (0 errori, timing OK, tutti i test superati). Da verificare il fit finale in Quartus dopo le ottimizzazioni. I passi rimanenti sono di scheda (transceiver, alimentazioni, connettori, JTAG).</div>
   </section>
 
   <footer>

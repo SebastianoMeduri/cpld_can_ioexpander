@@ -21,6 +21,9 @@ configurabili singolarmente come ingresso o uscita e comandabili via CAN.
   (`safe_ch1`, `safe_ch2`); se uno qualsiasi va basso le uscite vengono forzate a
   livello basso, con auto-ripristino e notifica STATUS.
 - **32 pin bidirezionali**, direzione configurabile per singolo pin.
+- **8 encoder incrementali** in quadratura A/B (decodifica x4, contatori 16 bit
+  con segno) con **trasmissione periodica** su CAN (periodo configurabile) e
+  comando di azzeramento.
 - Invio dello stato **su richiesta** e **automatico** al variare di un ingresso.
 - Default: **500 kbit/s** con clock a **20 MHz** (parametrizzabile via `generic`).
 - Codice **VHDL portabile e vendor-neutral** (nessuna dipendenza da primitive
@@ -34,14 +37,20 @@ rtl/
   can_bit_timing.vhd     Temporizzazione di bit (time quanta, sync/resync)
   can_mac.vhd            Livello MAC CAN 2.0A (TX/RX in un'unica FSM)
   can_controller.vhd     Sincronizzatore + bit timing + MAC (interfaccia a messaggi)
-  io_expander.vhd        Logica dell'espansore I/O a 32 pin
-  can_ioexpander_top.vhd Top level (controller + espansore)
+  quad_decoder.vhd       Decodificatore di quadratura encoder (x4, 16 bit)
+  io_expander.vhd        Espansore I/O, sicurezza, encoder e scheduler TX
+  can_ioexpander_top.vhd Top level (controller + espansore + 8 encoder)
 sim/
   tb_can_ioexpander.vhd  Testbench end-to-end (host + DUT su bus wired-AND)
   run_ghdl.sh            Script di simulazione GHDL (Linux/macOS/Git Bash)
   run_ghdl.ps1           Script di simulazione GHDL (Windows PowerShell)
 doc/
   protocol.md            Descrizione del protocollo applicativo
+esp32/
+  components/can_ioexpander/  Driver ESP-IDF (TWAI) per comandare l'expander
+  main/main.c                 Esempio d'uso su ESP32
+csharp_gui/
+  ExpanderTester.csproj  GUI di test Windows (WinForms) via PEAK PCAN-USB
 ```
 
 Ordine di compilazione: `can_pkg` -> `can_bit_timing` -> `can_mac` ->
@@ -58,6 +67,8 @@ Ordine di compilazione: `can_pkg` -> `can_bit_timing` -> `can_mac` ->
 | `node_addr`   | in    | indirizzo nodo, 4 bit (es. da dip-switch)    |
 | `safe_ch1`    | in    | sicurezza, canale 1 (consenso attivo alto)   |
 | `safe_ch2`    | in    | sicurezza, canale 2 (consenso attivo alto)   |
+| `enc_a[7:0]`  | in    | encoder 0..7, canale A                        |
+| `enc_b[7:0]`  | in    | encoder 0..7, canale B                        |
 | `io[31:0]`    | inout | 32 pin di I/O bidirezionali                  |
 | `led_error`   | out   | diagnostica: LED su fault CAN persistente    |
 
@@ -104,8 +115,9 @@ scelto e mappare i pin `io[31:0]` su I/O bidirezionali reali.
 - **Sintesi/fitting** (Quartus Prime Lite 21.1, MAX V 5M1270ZT144): 0 errori,
   timing rispettato, pinout assegnato.
 - **Simulazione funzionale** (GHDL): il testbench in `sim/` valida
-  CONFIG → OUTPUT → STATUS, l'iniezione di un errore con relativo recupero
-  (error frame + ritorno operativo) e la tolleranza di una trama a
-  identificatore esteso (2.0B passive). Tutti i test superati.
+  CONFIG → OUTPUT → STATUS, l'iniezione di un errore con recupero (error frame),
+  la tolleranza di una trama a identificatore esteso (2.0B passive), la funzione
+  di sicurezza (uscite a low + auto-ripristino) e gli encoder (conteggio in
+  quadratura, trasmissione periodica e azzeramento via CAN). Tutti i test superati.
 
 Le limitazioni residue del core sono elencate in [doc/protocol.md](doc/protocol.md).

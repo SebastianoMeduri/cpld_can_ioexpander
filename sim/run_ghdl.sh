@@ -14,6 +14,7 @@ SRC=(
   rtl/can_bit_timing.vhd
   rtl/can_mac.vhd
   rtl/can_controller.vhd
+  rtl/quad_decoder.vhd
   rtl/io_expander.vhd
   rtl/can_ioexpander_top.vhd
   sim/tb_can_ioexpander.vhd

@@ -102,11 +102,8 @@ architecture rtl of can_mac is
   signal rx_crc_ok: std_logic := '0';
   signal frame_ext: std_logic := '0';   -- '1' = trama a identificatore esteso (29 bit)
 
-  -- registri di trasmissione
-  signal txl_id   : std_logic_vector(10 downto 0) := (others => '0');
-  signal txl_rtr  : std_logic := '0';
-  signal txl_dlc  : std_logic_vector(3 downto 0) := (others => '0');
-  signal txl_data : std_logic_vector(63 downto 0) := (others => '0');
+  -- registro di trasmissione (i campi tx_* restano stabili dall'app per tutta
+  -- la trama, quindi non vengono latchati qui: risparmio di risorse)
   signal tx_ack_ok: std_logic := '0';
 
   -- fault confinement
@@ -209,10 +206,6 @@ begin
             if tx_request = '1' and rx_sync = '1' and busoff_latch = '0' then
               drive_r <= '0';         -- SOF
               is_tx   <= '1';
-              txl_id  <= tx_id;
-              txl_rtr <= tx_rtr;
-              txl_dlc <= tx_dlc;
-              txl_data<= tx_data;
             else
               drive_r <= '1';
               is_tx   <= '0';
@@ -242,12 +235,12 @@ begin
               stuff_slot <= '0';
               if is_tx = '1' then
                 case state is
-                  when ST_ID   => txbit := txl_id(10 - bitpos);
-                  when ST_RTR  => txbit := txl_rtr;
+                  when ST_ID   => txbit := tx_id(10 - bitpos);
+                  when ST_RTR  => txbit := tx_rtr;
                   when ST_IDE  => txbit := '0';
                   when ST_R0   => txbit := '0';
-                  when ST_DLC  => txbit := txl_dlc(3 - bitpos);
-                  when ST_DATA => txbit := txl_data(63 - bitpos);
+                  when ST_DLC  => txbit := tx_dlc(3 - bitpos);
+                  when ST_DATA => txbit := tx_data(63 - bitpos);
                   when ST_CRC  => txbit := crc_calc(14 - bitpos);
                   when others  => txbit := '1';
                 end case;

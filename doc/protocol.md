@@ -22,15 +22,21 @@ bit_time = (1 + TSEG1 + TSEG2) * Tq = 1 / bitrate
 ```
 ID[10:8] = FUNC   (funzione)
 ID[7:4]  = NODE   (indirizzo del nodo, ingresso node_addr)
-ID[3:0]  = 0000   (riservato)
+ID[3:0]  = SUB    (0000; per ENC_DATA = indice blocco)
 ```
 
-| FUNC  | Nome    | Direzione   | Descrizione                                  |
-|-------|---------|-------------|----------------------------------------------|
-| `010` | CONFIG  | host -> exp | imposta la direzione dei pin                 |
-| `001` | OUTPUT  | host -> exp | imposta i valori delle uscite                |
-| `011` | REQUEST | host -> exp | richiede l'invio immediato dello stato       |
-| `100` | STATUS  | exp -> host | stato corrente dei pin                       |
+| FUNC  | Nome       | Direzione   | Descrizione                                       |
+|-------|------------|-------------|---------------------------------------------------|
+| `000` | ENC_PERIOD | host -> exp | periodo TX encoder in ms: `data[63:48]` (0 = off) |
+| `001` | OUTPUT     | host -> exp | imposta i valori delle uscite                     |
+| `010` | CONFIG     | host -> exp | imposta la direzione dei pin                      |
+| `011` | REQUEST    | host -> exp | richiede l'invio immediato dello STATUS           |
+| `100` | STATUS     | exp -> host | stato corrente dei pin                            |
+| `101` | ENC_RESET  | host -> exp | `data[7:0]`: bit i azzera il contatore encoder i  |
+| `110` | ENC_DATA   | exp -> host | conteggi encoder (SUB=0 → enc0..3, SUB=1 → enc4..7) |
+
+I codici FUNC dei comandi host->exp sono piu' bassi di ENC_DATA cosi' che l'host
+vinca sempre l'arbitraggio anche durante la trasmissione periodica.
 
 ## Mappatura dei pin nel payload
 
@@ -97,6 +103,24 @@ ID=0x110  DLC=4  DATA=BE EF 00 00
 # Nodo 1: richiesta stato -> il nodo risponde con ID=0x410
 ID=0x310  DLC=0
 ```
+
+## Encoder incrementali (8 canali)
+
+Otto encoder in quadratura A/B (`enc_a[7:0]`, `enc_b[7:0]`), decodifica **x4**,
+contatori a **16 bit con segno**. I conteggi sono trasmessi **periodicamente** su
+CAN con due trame ENC_DATA (DLC=8):
+
+* **SUB=0** (`ID[3:0]=0000`): encoder 0..3;
+* **SUB=1** (`ID[3:0]=0001`): encoder 4..7.
+
+In ogni trama i 4 conteggi sono `int16` in ordine, con l'encoder di indice piu'
+basso nei byte piu' significativi:
+`data[63:48]=enc(k)`, `[47:32]=enc(k+1)`, `[31:16]=enc(k+2)`, `[15:0]=enc(k+3)`.
+
+* **ENC_PERIOD** (FUNC=000): imposta il periodo di trasmissione in ms
+  (`data[63:48]`); 0 disabilita la trasmissione periodica.
+* **ENC_RESET** (FUNC=101): `data[7:0]` bitmask, il bit i azzera il contatore
+  dell'encoder i.
 
 ## Gestione errori e fault confinement
 

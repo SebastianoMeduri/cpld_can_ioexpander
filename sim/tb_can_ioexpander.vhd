@@ -71,6 +71,8 @@ architecture sim of tb_can_ioexpander is
   signal node_addr : std_logic_vector(3 downto 0) := "0001";
   signal safe_ch1  : std_logic := '1';   -- consenso sicurezza (attivo alto)
   signal safe_ch2  : std_logic := '1';
+  signal enc_a     : std_logic_vector(7 downto 0) := (others => '0');
+  signal enc_b     : std_logic_vector(7 downto 0) := (others => '0');
   signal io        : std_logic_vector(31 downto 0);
   signal tb_io_drv : std_logic_vector(31 downto 0) := (others => 'Z');
   signal led_err   : std_logic;
@@ -79,6 +81,9 @@ architecture sim of tb_can_ioexpander is
   constant ID_CONFIG : std_logic_vector(10 downto 0) := "010" & "0001" & "0000";
   constant ID_OUTPUT : std_logic_vector(10 downto 0) := "001" & "0001" & "0000";
   constant ID_STATUS : std_logic_vector(10 downto 0) := "100" & "0001" & "0000";
+  constant ID_ENCPER : std_logic_vector(10 downto 0) := "000" & "0001" & "0000";
+  constant ID_ENCRST : std_logic_vector(10 downto 0) := "101" & "0001" & "0000";
+  constant ID_ENC0   : std_logic_vector(10 downto 0) := "110" & "0001" & "0000";
 
 begin
 
@@ -146,6 +151,7 @@ begin
   -- Nodo B: DUT (I/O expander)
   ----------------------------------------------------------------------------
   u_dut : entity work.can_ioexpander_top
+    generic map (MS_TICKS => 20, ENC_PERIOD_MS => 0)   -- ms veloce, periodico off all'avvio
     port map (
       clk       => clk,
       rst_n     => rst_n,
@@ -154,6 +160,8 @@ begin
       node_addr => node_addr,
       safe_ch1  => safe_ch1,
       safe_ch2  => safe_ch2,
+      enc_a     => enc_a,
+      enc_b     => enc_b,
       io        => io,
       led_error => led_err
     );
@@ -252,7 +260,34 @@ begin
       tb_drive <= '1';
     end procedure;
 
+    -- avanza di un passo la quadratura dell'encoder 0 (fwd=avanti)
+    procedure enc0_step (fwd : boolean) is
+      variable ab : std_logic_vector(1 downto 0);
+    begin
+      ab := to_x01(enc_a(0)) & to_x01(enc_b(0));
+      if fwd then
+        case ab is
+          when "00"   => ab := "01";
+          when "01"   => ab := "11";
+          when "11"   => ab := "10";
+          when others => ab := "00";
+        end case;
+      else
+        case ab is
+          when "00"   => ab := "10";
+          when "10"   => ab := "11";
+          when "11"   => ab := "01";
+          when others => ab := "00";
+        end case;
+      end if;
+      enc_a(0) <= ab(1);
+      enc_b(0) <= ab(0);
+      wait for 15 * CLK_PERIOD;
+    end procedure;
+
     variable ext_ack : boolean;
+    variable rxd     : std_logic_vector(63 downto 0);
+    variable got     : boolean;
 
   begin
     -- pin bassi (ingressi) pilotati a 0 dal testbench, pin alti in alta impedenza
@@ -377,6 +412,51 @@ begin
     assert to_x01(io(31 downto 16)) = x"1234"
       report "FAIL: nessun auto-ripristino dopo safe_ch2" severity failure;
     report "TB: OK sicurezza fail-safe validata (auto-ripristino)";
+
+    ------------------------------------------------------------------------
+    -- 8) Encoder: quadratura, trasmissione periodica e azzeramento
+    ------------------------------------------------------------------------
+    report "TB: encoder - genero 8 impulsi AVANTI su encoder 0";
+    for k in 1 to 8 loop
+      enc0_step(true);
+    end loop;
+
+    report "TB: abilito la trasmissione periodica encoder (ENC_PERIOD)";
+    host_send(ID_ENCPER, "0100", x"0064" & x"0000" & x"00000000");  -- periodo 100 (ms fittizi)
+
+    -- attende una trama ENC_DATA blocco 0 e verifica il conteggio di encoder 0
+    got := false;
+    while not got loop
+      wait until h_rxvld = '1' for 4 ms;
+      assert h_rxvld = '1' report "TIMEOUT: nessuna trama ENC_DATA ricevuta" severity failure;
+      if h_rxid = ID_ENC0 then
+        rxd := h_rxdata;
+        got := true;
+      end if;
+      wait for CLK_PERIOD;
+    end loop;
+    assert rxd(63 downto 48) = x"0008"
+      report "FAIL: conteggio encoder 0 errato, atteso 0x0008, letto 0x" &
+             to_hstring(rxd(63 downto 48)) severity failure;
+    report "TB: OK encoder 0 = +8 ricevuto via CAN (ENC_DATA)";
+
+    report "TB: azzeramento encoder 0 (ENC_RESET)";
+    host_send(ID_ENCRST, "1000", x"0000000000000001");   -- data[7:0] bit0 -> azzera enc0
+
+    got := false;
+    while not got loop
+      wait until h_rxvld = '1' for 4 ms;
+      assert h_rxvld = '1' report "TIMEOUT: nessuna trama ENC_DATA dopo reset" severity failure;
+      if h_rxid = ID_ENC0 then
+        rxd := h_rxdata;
+        got := true;
+      end if;
+      wait for CLK_PERIOD;
+    end loop;
+    assert rxd(63 downto 48) = x"0000"
+      report "FAIL: encoder 0 non azzerato, letto 0x" &
+             to_hstring(rxd(63 downto 48)) severity failure;
+    report "TB: OK encoder 0 azzerato via CAN";
 
     report "TB: *** TUTTI I TEST SUPERATI ***" severity note;
     sim_end <= true;
