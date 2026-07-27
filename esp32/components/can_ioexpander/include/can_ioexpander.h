@@ -33,6 +33,10 @@ typedef struct {
     bool     status_valid;  /* true dopo la prima trama STATUS               */
     int16_t  enc[8];        /* conteggi degli 8 encoder, da ENC_DATA         */
     bool     enc_valid;     /* true dopo la prima trama ENC_DATA             */
+    uint16_t adc[8];        /* letture ADC 12 bit (solo MAX 10), da ANALOG   */
+    bool     adc_valid;     /* true dopo la prima trama ANALOG di letture    */
+    uint8_t  adc_over;      /* bitmap confronto soglie: bit i = adc[i]>=thr[i]*/
+    bool     adc_over_valid;/* true dopo la prima trama ANALOG bitmap (SUB=2)*/
 } can_ioexpander_state_t;
 
 /* Installa e avvia il driver TWAI a 500 kbit/s. */
@@ -60,9 +64,18 @@ esp_err_t can_ioexpander_set_enc_period(uint8_t node, uint16_t period_ms);
 esp_err_t can_ioexpander_reset_encoders(uint8_t node, uint8_t enc_mask);
 
 /*
+ * Soglie ADC (solo MAX 10). Imposta gli 8 registri di soglia (12 bit utili)
+ * inviando due trame CONFIG (SUB=1 ch0..3, SUB=2 ch4..7). L'expander confronta
+ * di continuo adc[i] >= thr[i] e riporta il bitmap con ANALOG SUB=2 (vedi
+ * st.adc_over aggiornato da can_ioexpander_poll). Al reset le soglie sono a
+ * fondo scala (0xFFF), cioe' nessun canale in allarme.
+ */
+esp_err_t can_ioexpander_set_adc_thresholds(uint8_t node, const uint16_t thr[8]);
+
+/*
  * Riceve una trama (attesa max timeout_ms) e, se proviene dal nodo indicato,
  * aggiorna *st. Ritorna:
- *   ESP_OK             -> trama STATUS o ENC_DATA del nodo elaborata
+ *   ESP_OK             -> trama STATUS / ENC_DATA / ANALOG del nodo elaborata
  *   ESP_ERR_TIMEOUT    -> nessuna trama entro il timeout
  *   ESP_ERR_NOT_FOUND  -> trama ricevuta ma non pertinente (altro nodo/funzione)
  */

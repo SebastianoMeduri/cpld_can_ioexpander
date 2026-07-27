@@ -14,7 +14,7 @@ set_global_assignment -name FAMILY "MAX V"
 # di temperatura (la sintesi e il fitting sono identici).
 set_global_assignment -name DEVICE 5M1270ZT144C4
 
-set_global_assignment -name TOP_LEVEL_ENTITY can_ioexpander_top
+set_global_assignment -name TOP_LEVEL_ENTITY can_ioexpander_maxv
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 
 #-------------------------------------------------------------------------------
@@ -36,6 +36,7 @@ set_global_assignment -name VHDL_FILE ../rtl/can_controller.vhd
 set_global_assignment -name VHDL_FILE ../rtl/quad_decoder.vhd
 set_global_assignment -name VHDL_FILE ../rtl/io_expander.vhd
 set_global_assignment -name VHDL_FILE ../rtl/can_ioexpander_top.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_ioexpander_maxv.vhd
 
 # Vincoli di timing
 set_global_assignment -name SDC_FILE can_ioexpander.sdc

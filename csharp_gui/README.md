@@ -15,6 +15,9 @@ descritto in [../doc/protocol.md](../doc/protocol.md): frame standard 2.0A.
   trame STATUS ricevute; pulsante "Leggi stato" (REQUEST).
 - **Encoder**: 8 conteggi (int16) aggiornati dalle trame ENC_DATA; impostazione
   del periodo di trasmissione, stop, azzeramento contatori.
+- **Analogico (solo MAX 10)**: 8 letture ADC (12 bit) dalle trame ANALOG, 8 soglie
+  configurabili (CONFIG SUB=1/2); ogni riquadro diventa **rosso** quando il canale
+  supera la soglia (bitmap di confronto ANALOG SUB=2), **giallo** se sotto.
 - **Log**: traffico CAN TX/RX in tempo reale.
 
 ## Requisiti
@@ -50,6 +53,8 @@ Oppure apri `ExpanderTester.csproj` in Visual Studio 2022 e premi F5.
 3. Spunta le uscite desiderate → **Scrivi uscite**.
 4. **Leggi stato** o osserva gli indicatori aggiornarsi automaticamente.
 5. Imposta il periodo encoder (es. 50 ms) per vedere i conteggi in tempo reale.
+6. (MAX 10) Imposta le **soglie** analogiche (hex 12 bit) → **Imposta soglie**:
+   le letture ANALOG compaiono nei riquadri AN0..7 e diventano rosse al superamento.
 
 ## Struttura
 

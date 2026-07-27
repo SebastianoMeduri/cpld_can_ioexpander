@@ -16,6 +16,7 @@ namespace ExpanderTester
         private const int FUNC_STATUS  = 4;
         private const int FUNC_ENCRST  = 5;
         private const int FUNC_ENC     = 6;
+        private const int FUNC_ANALOG  = 7;
 
         private ushort _channel = PCANBasic.PCAN_USBBUS1;
         private bool _connected = false;
@@ -30,13 +31,15 @@ namespace ExpanderTester
         private Panel[] _inBits = new Panel[32];
         private Label[] _encVals = new Label[8];
         private TextBox _txtPeriod;
+        private Label[] _adcVals = new Label[8];
+        private TextBox[] _thrTxt = new TextBox[8];
         private TextBox _txtLog;
         private System.Windows.Forms.Timer _rxTimer;
 
         public MainForm()
         {
             Text = "CAN I/O Expander — Tester (PEAK PCAN-USB)";
-            ClientSize = new Size(940, 760);
+            ClientSize = new Size(940, 902);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
@@ -124,8 +127,36 @@ namespace ExpanderTester
             gEnc.Controls.AddRange(new Control[] { lblPer, _txtPeriod, btnPer, btnPerOff, btnEncRst });
             Controls.Add(gEnc);
 
+            // ---- Analogico (solo MAX 10) ----
+            var gAna = new GroupBox { Text = "Ingressi analogici (ADC 12 bit, solo MAX 10)  —  giallo = sotto soglia, rosso = sopra soglia", Location = new Point(10, 490), Size = new Size(920, 132) };
+            for (int i = 0; i < 8; i++)
+            {
+                var cap = new Label { Text = "AN" + i, Location = new Point(15 + i * 113, 20), AutoSize = true };
+                _adcVals[i] = new Label
+                {
+                    Text = "-",
+                    Location = new Point(15 + i * 113, 40),
+                    Size = new Size(95, 26),
+                    BorderStyle = BorderStyle.FixedSingle,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    BackColor = Color.LightYellow,
+                    Font = new Font(FontFamily.GenericMonospace, 11, FontStyle.Bold)
+                };
+                _thrTxt[i] = new TextBox { Location = new Point(15 + i * 113, 70), Size = new Size(95, 22), Text = "FFF" };
+                gAna.Controls.Add(cap);
+                gAna.Controls.Add(_adcVals[i]);
+                gAna.Controls.Add(_thrTxt[i]);
+            }
+            var lblThr = new Label { Text = "Soglie (hex, 12 bit):", Location = new Point(15, 102), AutoSize = true };
+            var btnThr = new Button { Text = "Imposta soglie", Location = new Point(150, 98), Size = new Size(140, 26) };
+            btnThr.Click += (s, e) => SetThresholds();
+            var btnThrMax = new Button { Text = "Tutte a fondo scala", Location = new Point(300, 98), Size = new Size(150, 26) };
+            btnThrMax.Click += (s, e) => { foreach (var t in _thrTxt) t.Text = "FFF"; SetThresholds(); };
+            gAna.Controls.AddRange(new Control[] { lblThr, btnThr, btnThrMax });
+            Controls.Add(gAna);
+
             // ---- Log ----
-            var gLog = new GroupBox { Text = "Traffico CAN", Location = new Point(10, 490), Size = new Size(920, 258) };
+            var gLog = new GroupBox { Text = "Traffico CAN", Location = new Point(10, 632), Size = new Size(920, 258) };
             _txtLog = new TextBox
             {
                 Location = new Point(12, 22),
@@ -276,6 +307,30 @@ namespace ExpanderTester
             return w;
         }
 
+        // Invia le 8 soglie ADC con due trame CONFIG (SUB=1 ch0..3, SUB=2 ch4..7).
+        private void SetThresholds()
+        {
+            for (int blk = 0; blk < 2; blk++)
+            {
+                var d = new byte[8];
+                for (int i = 0; i < 4; i++)
+                {
+                    ushort v = ParseThr(_thrTxt[blk * 4 + i].Text);
+                    d[2 * i]     = (byte)(v >> 8);   // canale piu' basso nei byte alti
+                    d[2 * i + 1] = (byte)v;
+                }
+                SendRaw(FUNC_CONFIG, blk + 1, d, 8, "CONFIG soglie ch" + (blk * 4) + ".." + (blk * 4 + 3));
+            }
+        }
+
+        private static ushort ParseThr(string s)
+        {
+            s = (s ?? "").Trim();
+            if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s.Substring(2);
+            ushort.TryParse(s, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ushort v);
+            return (ushort)(v & 0x0FFF);   // 12 bit utili
+        }
+
         // ---------------------------------------------------- ricezione CAN
         private void RxTimer_Tick(object sender, EventArgs e)
         {
@@ -314,6 +369,25 @@ namespace ExpanderTester
                 {
                     short v = (short)((msg.DATA[2 * i] << 8) | msg.DATA[2 * i + 1]);
                     _encVals[baseIdx + i].Text = v.ToString();
+                }
+            }
+            else if (func == FUNC_ANALOG)
+            {
+                int sub = (int)(msg.ID & 0xF);
+                if (sub <= 1 && msg.LEN >= 8)          // letture: 0 -> ch0..3, 1 -> ch4..7
+                {
+                    int baseIdx = (sub == 1) ? 4 : 0;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        int v = ((msg.DATA[2 * i] << 8) | msg.DATA[2 * i + 1]) & 0x0FFF;
+                        _adcVals[baseIdx + i].Text = v.ToString();
+                    }
+                }
+                else if (sub == 2 && msg.LEN >= 1)     // bitmap confronto soglie
+                {
+                    int over = msg.DATA[0];
+                    for (int i = 0; i < 8; i++)
+                        _adcVals[i].BackColor = ((over >> i) & 1) != 0 ? Color.LightSalmon : Color.LightYellow;
                 }
             }
         }

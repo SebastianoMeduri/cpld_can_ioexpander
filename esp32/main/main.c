@@ -34,6 +34,12 @@ void app_main(void)
     can_ioexpander_set_enc_period(NODE, 50);
     can_ioexpander_reset_encoders(NODE, 0xFF);
 
+    /* soglie ADC (solo MAX 10): allarme se un canale supera meta' scala (0x800).
+     * L'expander notifica il bitmap con ANALOG SUB=2 -> st.adc_over. */
+    const uint16_t thr[8] = { 0x800, 0x800, 0x800, 0x800,
+                              0x800, 0x800, 0x800, 0x800 };
+    can_ioexpander_set_adc_thresholds(NODE, thr);
+
     can_ioexpander_state_t st = {0};
     uint16_t pattern = 0x0001;
     TickType_t last_out = xTaskGetTickCount();
@@ -44,6 +50,10 @@ void app_main(void)
         if (e == ESP_OK && st.status_valid) {
             ESP_LOGI(TAG, "inputs=0x%08lx  enc0=%d enc1=%d enc2=%d enc3=%d",
                      (unsigned long)st.inputs, st.enc[0], st.enc[1], st.enc[2], st.enc[3]);
+        }
+        if (e == ESP_OK && st.adc_valid) {
+            ESP_LOGI(TAG, "adc0=%u adc1=%u adc2=%u adc3=%u  over=0x%02x",
+                     st.adc[0], st.adc[1], st.adc[2], st.adc[3], st.adc_over);
         }
 
         /* ogni 500 ms sposta il pattern sulle uscite (pin 31..16) */

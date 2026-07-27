@@ -55,6 +55,7 @@ Non serve alcun microcontrollore né controller CAN dedicato.
 | Clock di sistema | 20 MHz (MAX V) / 50 MHz (MAX 10) |
 | I/O bidirezionali | 32, direzione per singolo pin |
 | Encoder | 8 × quadratura A/B, contatore 16 bit con segno |
+| Ingressi analogici | 8 canali via ADC 12 bit (solo MAX 10) |
 | Sicurezza | doppio canale fail-safe (uscite a low) |
 | Codice | VHDL-2008 portabile, vendor-neutral |
 
@@ -107,7 +108,9 @@ generic per il clock a 50 MHz).
 | `rtl/quad_decoder.vhd` | `quad_decoder` | Decodifica quadratura x4, contatore 16 bit con segno |
 | `rtl/io_expander.vhd` | `io_expander` | 32 I/O, sicurezza, encoder, scheduler di trasmissione |
 | `rtl/can_ioexpander_top.vhd` | `can_ioexpander_top` | Top level (controller + 8 encoder + io_expander) |
-| `rtl/can_ioexpander_max10.vhd` | `can_ioexpander_max10` | Wrapper per MAX 10 (generic clock 50 MHz) |
+| `rtl/can_ioexpander_maxv.vhd` | `can_ioexpander_maxv` | Wrapper per MAX V (20 MHz, senza ADC) |
+| `rtl/can_ioexpander_max10.vhd` | `can_ioexpander_max10` | Wrapper per MAX 10 (50 MHz) |
+| `rtl/adc_reader.vhd` | `adc_reader` | Front-end ADC MAX 10 (8 canali) — richiede l'IP Modular ADC |
 
 **Ordine di compilazione:** `can_pkg` → `can_bit_timing` → `can_mac` →
 `can_controller` → `quad_decoder` → `io_expander` → `can_ioexpander_top`
@@ -162,8 +165,9 @@ Identificatore a 11 bit: `ID = FUNC(3) & NODE(4) & SUB(4)`.
 | `100` | STATUS | exp→host | `data[63:32]` = stato dei pin |
 | `101` | ENC_RESET | host→exp | `data[7:0]` bitmask: bit i azzera l'encoder i |
 | `110` | ENC_DATA | exp→host | conteggi encoder; SUB=0 → enc0..3, SUB=1 → enc4..7 |
+| `111` | ANALOG | exp→host | letture ADC (solo MAX 10); SUB=0 → ch0..3, SUB=1 → ch4..7 |
 
-I FUNC dei comandi host→exp sono più bassi di ENC_DATA, così l'host vince
+I FUNC dei comandi host→exp sono più bassi di ENC_DATA/ANALOG, così l'host vince
 l'arbitraggio anche durante la trasmissione periodica.
 
 **Mappatura payload → pin** (CONFIG/OUTPUT/STATUS): il pin `i` è il bit `32+i`
@@ -220,6 +224,58 @@ più basso nei byte più significativi: `data[63:48]=enc(k)`, `[47:32]=enc(k+1)`
 - **ENC_RESET:** `data[7:0]` bitmask, bit i azzera il contatore dell'encoder i.
 
 ---
+
+## 7-bis. Ingressi analogici (solo MAX 10)
+
+Il MAX 10 10M08SA integra un **ADC SAR 12 bit** (~1 MSPS). L'expander può leggere
+**8 canali analogici** e trasmetterli con il messaggio **ANALOG** (FUNC=111,
+DLC=8), con la stessa cadenza periodica degli encoder:
+
+- **SUB=0** → canali 0..3, **SUB=1** → canali 4..7;
+- 4 × `uint16` per trama (12 bit utili, giustificati a destra), canale più basso
+  nei byte più significativi (`data[63:48]=ch(k)` …).
+
+Sul MAX V (CPLD senza ADC) il messaggio ANALOG è assente. La funzione è
+controllata dal generic `ADC_PRESENT` (false = disabilitata, nessun impatto).
+
+### Soglie configurabili e confronto
+
+Ogni canale ha un **registro di soglia 12 bit** impostabile via CAN con il
+messaggio **CONFIG** (`SUB=1` per ch0..3, `SUB=2` per ch4..7, DLC=8, stesso
+ordinamento delle letture). L'expander confronta di continuo `adc[i]` con
+`soglia[i]` e produce un **bitmap a 8 bit** (`over[i] = adc[i] >= soglia[i]`),
+trasmesso con **ANALOG `SUB=2`** (`data[63:56]`) sia in coda alla sequenza
+periodica sia **immediatamente al variare** del bitmap — un vero comparatore/
+allarme analogico, analogo allo STATUS per gli ingressi digitali. Al reset le
+soglie sono a fondo scala (0xFFF), quindi nessun allarme prima della configurazione.
+Dettagli e formato in [protocol.md](protocol.md).
+
+### Abilitazione dell'ADC sul target MAX 10
+
+L'ADC è un **hard-IP** del MAX 10: va generato in Quartus (non è simulabile in
+GHDL né presente sul MAX V). Il modulo [rtl/adc_reader.vhd](../rtl/adc_reader.vhd)
+fa da sequencer (legge gli 8 canali → `adc_val`). Passi:
+
+1. **IP Catalog → Altera Modular ADC Core**: variante con sequencer standard e
+   interfaccia comandi/risposte, abilita fino a 8 canali (CH1..CH8), clock ADC da
+   PLL. Annota il nome dell'entità generata e adegua il `component modular_adc` in
+   `adc_reader.vhd`.
+2. **IP Catalog → Altera PLL**: 50 MHz → clock ADC (es. 10 MHz); collega `locked`.
+3. Aggiungi i file IP + `adc_reader.vhd` al progetto `quartus_max10`.
+4. In `can_ioexpander_max10` imposta `ADC_PRESENT => true` e istanzia `adc_reader`,
+   collegando la sua uscita `adc_val` al top:
+
+   ```vhdl
+   u_adc : entity work.adc_reader
+     port map (clk => clk, rst_n => rst_n,
+               adc_pll_clk => adc_clk, adc_pll_lock => adc_locked,
+               adc_val => adc_val_s);
+   -- e nel generic map del top:  ADC_PRESENT => true,
+   -- nella port map del top:     adc_val => adc_val_s
+   ```
+
+I pin analogici sono pin dedicati/dual-purpose gestiti dall'IP (assegnati nella
+configurazione dell'IP, non come porte RTL). Sui segnali 3.3 V vale AN 447.
 
 ## 8. Gestione errori e fault confinement
 
@@ -334,6 +390,7 @@ in wired-AND, più un generatore di trama estesa per il test 2.0B.
 4. Trama a identificatore esteso (2.0B passive): confermata ma ignorata
 5. Sicurezza: apertura canale 1 e 2 → uscite a low + auto-ripristino
 6. Encoder: 8 impulsi avanti → conteggio via ENC_DATA; ENC_RESET → azzeramento
+7. ANALOG: letture ADC (con `ADC_PRESENT=true`) → verifica ch0/ch1 via CAN
 
 **Esecuzione:**
 

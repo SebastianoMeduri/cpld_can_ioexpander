@@ -55,10 +55,13 @@ idf.py build flash monitor
 | `can_ioexpander_request_status(node)` | richiede una trama STATUS |
 | `can_ioexpander_set_enc_period(node,ms)` | periodo TX encoder (0=off) |
 | `can_ioexpander_reset_encoders(node,mask)` | azzera contatori (bit i=encoder i) |
-| `can_ioexpander_poll(node,&st,timeout)` | riceve STATUS/ENC_DATA → aggiorna `st` |
+| `can_ioexpander_set_adc_thresholds(node,thr[8])` | soglie ADC 12 bit (solo MAX 10) |
+| `can_ioexpander_poll(node,&st,timeout)` | riceve STATUS/ENC_DATA/ANALOG → aggiorna `st` |
 
 `st.inputs` è la word a 32 bit dei pin (bit i = pin i); `st.enc[0..7]` sono i
-conteggi encoder (`int16` con segno).
+conteggi encoder (`int16` con segno); `st.adc[0..7]` le letture ADC 12 bit (solo
+MAX 10) e `st.adc_over` il bitmap di confronto soglie (bit i = `adc[i] ≥ thr[i]`),
+aggiornato dalla trama ANALOG `SUB=2` inviata al variare del confronto.
 
 ## Esempio minimo
 
@@ -78,6 +81,9 @@ while (1) {
 
 ## Note
 
+* Le funzioni ADC (`set_adc_thresholds`, `st.adc[]`, `st.adc_over`) hanno effetto
+  solo sul target **MAX 10** con ADC abilitato; sul MAX V l'expander non invia
+  trame ANALOG e i campi restano non validi.
 * Il driver ignora le trame a identificatore esteso (29 bit); l'expander le
   tollera comunque sul bus (2.0B passive).
 * Verifica che il sample point del preset `TWAI_TIMING_CONFIG_500KBITS()`

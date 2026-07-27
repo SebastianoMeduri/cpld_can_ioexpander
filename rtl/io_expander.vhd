@@ -11,12 +11,20 @@
 --                                      (0 = disabilita la trasmissione periodica)
 --   FUNC="001" OUTPUT     (host->exp): data[63:32] = valori uscite
 --                                      se DLC=8: data[31:0] = maschera scrittura
---   FUNC="010" CONFIG     (host->exp): data[63:32] = maschera direzione (1=uscita)
+--   FUNC="010" CONFIG     (host->exp): SUB=0 -> data[63:32] = maschera direzione
+--                                      (1=uscita); SUB=1 -> soglie ADC ch0..3;
+--                                      SUB=2 -> soglie ADC ch4..7 (4 x uint16 12 bit,
+--                                      stesso ordinamento di ANALOG). Solo ADC_PRESENT.
 --   FUNC="011" REQUEST    (host->exp): richiede l'invio immediato dello STATUS
 --   FUNC="100" STATUS     (exp->host): data[63:32] = stato pin
 --   FUNC="101" ENC_RESET  (host->exp): data[7:0] = bitmask (bit i azzera encoder i)
 --   FUNC="110" ENC_DATA   (exp->host): conteggi encoder. SUB=0 -> enc0..3,
 --                                      SUB=1 -> enc4..7. 4 x int16, MSB=enc piu' basso.
+--   FUNC="111" ANALOG     (exp->host): letture ADC (solo se ADC_PRESENT). SUB=0 ->
+--                                      ch0..3, SUB=1 -> ch4..7. 4 x uint16 (12 bit).
+--                                      SUB=2 -> confronto soglie: data[63:56] bitmap,
+--                                      bit i = 1 se adc(i) >= soglia(i). Inviata in coda
+--                                      alla sequenza periodica e al variare del bitmap.
 --
 -- I contatori encoder (16 bit con segno) arrivano da 8 quad_decoder esterni via
 -- enc_count; enc_rst azzera i contatori selezionati.
@@ -34,7 +42,8 @@ use ieee.numeric_std.all;
 entity io_expander is
   generic (
     MS_TICKS       : positive := 20000;  -- cicli di clk per 1 ms (20 MHz -> 20000)
-    ENC_PERIOD_MS  : natural  := 10      -- periodo TX encoder di default (0 = off)
+    ENC_PERIOD_MS  : natural  := 10;     -- periodo TX encoder/analog di default (0 = off)
+    ADC_PRESENT    : boolean  := false   -- true: trasmette anche le letture ADC (MAX 10)
   );
   port (
     clk        : in    std_logic;
@@ -65,6 +74,9 @@ entity io_expander is
     enc_count  : in    std_logic_vector(127 downto 0);
     enc_rst    : out   std_logic_vector(7 downto 0);
 
+    -- ADC: 8 canali a 16 bit (canale i = bit 16*i+15 .. 16*i; valore su 12 bit)
+    adc_val    : in    std_logic_vector(127 downto 0) := (others => '0');
+
     -- pin bidirezionali verso il mondo esterno
     io         : inout std_logic_vector(31 downto 0)
   );
@@ -79,8 +91,9 @@ architecture rtl of io_expander is
   constant FUNC_STATUS  : std_logic_vector(2 downto 0) := "100";
   constant FUNC_ENCRST  : std_logic_vector(2 downto 0) := "101";
   constant FUNC_ENC     : std_logic_vector(2 downto 0) := "110";
+  constant FUNC_ANALOG  : std_logic_vector(2 downto 0) := "111";
 
-  type job_t is (JOB_NONE, JOB_STATUS, JOB_ENC0, JOB_ENC1);
+  type job_t is (JOB_NONE, JOB_STATUS, JOB_ENC0, JOB_ENC1, JOB_ANA0, JOB_ANA1, JOB_ACMP);
 
   signal dir      : std_logic_vector(31 downto 0) := (others => '0');
   signal outv     : std_logic_vector(31 downto 0) := (others => '0');
@@ -113,6 +126,17 @@ architecture rtl of io_expander is
   signal ms_cnt       : unsigned(15 downto 0) := (others => '0');
   signal enc_blk0     : std_logic_vector(63 downto 0);
   signal enc_blk1     : std_logic_vector(63 downto 0);
+  signal ana_phase    : integer range 0 to 2 := 0;   -- fasi TX analog (0=idle)
+  signal ana_blk0     : std_logic_vector(63 downto 0);
+  signal ana_blk1     : std_logic_vector(63 downto 0);
+
+  -- soglie ADC configurabili (8 x 16 bit, canale i = bit 16*i+15..16*i, come adc_val)
+  -- e confronto adc >= soglia (bitmap a 8 bit) con notifica al variare.
+  -- Default al reset = fondo scala (0xFFF): nessun canale in allarme prima della config.
+  signal thr         : std_logic_vector(127 downto 0) := (others => '0');
+  signal cmp         : std_logic_vector(7 downto 0);
+  signal cmp_d       : std_logic_vector(7 downto 0) := (others => '0');
+  signal pending_cmp : std_logic := '0';
 
 begin
 
@@ -133,6 +157,24 @@ begin
               enc_count(47 downto 32) & enc_count(63 downto 48);
   enc_blk1 <= enc_count(79 downto 64)   & enc_count(95 downto 80) &
               enc_count(111 downto 96)  & enc_count(127 downto 112);
+
+  -- payload ADC: 4 x uint16, canale piu' basso nei byte piu' significativi
+  ana_blk0 <= adc_val(15 downto 0)  & adc_val(31 downto 16) &
+              adc_val(47 downto 32) & adc_val(63 downto 48);
+  ana_blk1 <= adc_val(79 downto 64)   & adc_val(95 downto 80) &
+              adc_val(111 downto 96)  & adc_val(127 downto 112);
+
+  -- confronto per canale: bit i = 1 se lettura ADC >= soglia (12 bit utili).
+  -- Solo con ADC presente; altrimenti bitmap fisso a 0 (logica potata sul MAX V).
+  gen_cmp_on : if ADC_PRESENT generate
+    gc : for i in 0 to 7 generate
+      cmp(i) <= '1' when unsigned(adc_val(16*i+11 downto 16*i)) >=
+                         unsigned(thr(16*i+11 downto 16*i)) else '0';
+    end generate;
+  end generate;
+  gen_cmp_off : if not ADC_PRESENT generate
+    cmp <= (others => '0');
+  end generate;
 
   -- uscite verso il controller / decoder
   tx_request <= txreq;
@@ -158,9 +200,13 @@ begin
         safe_ok <= '0'; safe_ok_d <= '0';
         enc_rst_r  <= (others => '0');
         enc_phase  <= 0;
+        ana_phase  <= 0;
         enc_period <= to_unsigned(ENC_PERIOD_MS, 16);
         ms_presc   <= 0;
         ms_cnt     <= (others => '0');
+        thr        <= (others => '1');  -- soglie a fondo scala: comparatore a riposo
+        cmp_d      <= (others => '0');
+        pending_cmp <= '0';
       else
         -- impulso di reset encoder di default a 0 (attivo 1 clk su comando)
         enc_rst_r <= (others => '0');
@@ -177,6 +223,14 @@ begin
           pending_status <= '1';
         end if;
 
+        -- notifica immediata al variare del confronto adc/soglia (allarme analogico)
+        if ADC_PRESENT then
+          cmp_d <= cmp;
+          if cmp /= cmp_d then
+            pending_cmp <= '1';
+          end if;
+        end if;
+
         ----------------------------------------------------------------------
         -- Timer periodico (base dei ms) per la trasmissione degli encoder
         ----------------------------------------------------------------------
@@ -185,8 +239,13 @@ begin
           if enc_period /= 0 then
             if ms_cnt >= enc_period - 1 then
               ms_cnt <= (others => '0');
-              if enc_phase = 0 then
-                enc_phase <= 1;              -- avvia invio blk0 poi blk1
+              -- arma la sequenza periodica solo se completamente idle: evita che
+              -- l'encoder si ri-armi prima che l'analog abbia trasmesso (starvation)
+              if enc_phase = 0 and ana_phase = 0 then
+                enc_phase <= 1;             -- encoder blk0, poi blk1
+                if ADC_PRESENT then
+                  ana_phase <= 1;           -- poi analog blk0, poi blk1
+                end if;
               end if;
             else
               ms_cnt <= ms_cnt + 1;
@@ -204,7 +263,19 @@ begin
         if rx_valid = '1' and rx_id(7 downto 4) = node_addr then
           case rx_id(10 downto 8) is
             when FUNC_CONFIG =>
-              dir <= rx_data(63 downto 32);
+              if rx_id(3 downto 0) = "0000" then
+                dir <= rx_data(63 downto 32);           -- direzione pin (default)
+              elsif ADC_PRESENT and rx_id(3 downto 0) = "0001" then
+                thr(15 downto 0)   <= rx_data(63 downto 48);  -- soglia ch0
+                thr(31 downto 16)  <= rx_data(47 downto 32);  -- soglia ch1
+                thr(47 downto 32)  <= rx_data(31 downto 16);  -- soglia ch2
+                thr(63 downto 48)  <= rx_data(15 downto 0);   -- soglia ch3
+              elsif ADC_PRESENT and rx_id(3 downto 0) = "0010" then
+                thr(79 downto 64)   <= rx_data(63 downto 48); -- soglia ch4
+                thr(95 downto 80)   <= rx_data(47 downto 32); -- soglia ch5
+                thr(111 downto 96)  <= rx_data(31 downto 16); -- soglia ch6
+                thr(127 downto 112) <= rx_data(15 downto 0);  -- soglia ch7
+              end if;
 
             when FUNC_OUTPUT =>
               if rx_dlc = "1000" then
@@ -242,6 +313,8 @@ begin
           if cur_job = JOB_STATUS then
             pending_status <= '0';
             last_rep       <= status_word;
+          elsif cur_job = JOB_ACMP then
+            pending_cmp <= '0';
           end if;
           cur_job <= JOB_NONE;
         elsif txreq = '0' and tx_busy = '0' and cur_job = JOB_NONE then
@@ -250,6 +323,12 @@ begin
             txid_r   <= FUNC_STATUS & node_addr & "0000";
             txdata_r <= status_word & x"00000000";
             txdlc_r  <= "0100";
+            txreq    <= '1';
+          elsif pending_cmp = '1' then
+            cur_job  <= JOB_ACMP;
+            txid_r   <= FUNC_ANALOG & node_addr & "0010";
+            txdata_r <= cmp & x"00000000000000";
+            txdlc_r  <= "0001";
             txreq    <= '1';
           elsif enc_phase = 1 then
             cur_job  <= JOB_ENC0;
@@ -263,6 +342,21 @@ begin
             enc_phase <= 0;
             txid_r   <= FUNC_ENC & node_addr & "0001";
             txdata_r <= enc_blk1;
+            txdlc_r  <= "1000";
+            txreq    <= '1';
+          elsif ana_phase = 1 then
+            cur_job  <= JOB_ANA0;
+            ana_phase <= 2;
+            txid_r   <= FUNC_ANALOG & node_addr & "0000";
+            txdata_r <= ana_blk0;
+            txdlc_r  <= "1000";
+            txreq    <= '1';
+          elsif ana_phase = 2 then
+            cur_job  <= JOB_ANA1;
+            ana_phase <= 0;
+            pending_cmp <= '1';         -- in coda: bitmap di confronto soglie
+            txid_r   <= FUNC_ANALOG & node_addr & "0001";
+            txdata_r <= ana_blk1;
             txdlc_r  <= "1000";
             txreq    <= '1';
           end if;

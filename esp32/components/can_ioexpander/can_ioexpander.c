@@ -15,6 +15,7 @@
 #define FUNC_STATUS  0x4
 #define FUNC_ENCRST  0x5
 #define FUNC_ENC     0x6
+#define FUNC_ANALOG  0x7
 
 /* ID = FUNC(3) & NODE(4) & SUB(4) */
 #define IOEXP_ID(func, node, sub) \
@@ -106,6 +107,25 @@ esp_err_t can_ioexpander_reset_encoders(uint8_t node, uint8_t enc_mask)
     return send_frame(IOEXP_ID(FUNC_ENCRST, node, 0), d, 8);
 }
 
+esp_err_t can_ioexpander_set_adc_thresholds(uint8_t node, const uint16_t thr[8])
+{
+    /* 4 x uint16 big-endian per trama, canale piu' basso nei byte piu' alti.
+     * CONFIG SUB=1 -> ch0..3, SUB=2 -> ch4..7. */
+    for (int blk = 0; blk < 2; blk++) {
+        uint8_t d[8];
+        for (int i = 0; i < 4; i++) {
+            uint16_t v = thr[blk * 4 + i] & 0x0FFF;   /* 12 bit utili */
+            d[2 * i]     = (uint8_t)(v >> 8);
+            d[2 * i + 1] = (uint8_t)(v);
+        }
+        esp_err_t e = send_frame(IOEXP_ID(FUNC_CONFIG, node, blk + 1), d, 8);
+        if (e != ESP_OK) {
+            return e;
+        }
+    }
+    return ESP_OK;
+}
+
 esp_err_t can_ioexpander_poll(uint8_t node, can_ioexpander_state_t *st, uint32_t timeout_ms)
 {
     twai_message_t m;
@@ -139,6 +159,25 @@ esp_err_t can_ioexpander_poll(uint8_t node, can_ioexpander_state_t *st, uint32_t
         }
         st->enc_valid = true;
         return ESP_OK;
+    }
+
+    if (func == FUNC_ANALOG) {
+        uint8_t sub = (uint8_t)(m.identifier & 0xF);
+        if (sub <= 1 && m.data_length_code >= 8) {      /* letture: 0 -> ch0..3, 1 -> ch4..7 */
+            int base = (sub == 1) ? 4 : 0;
+            for (int i = 0; i < 4; i++) {
+                st->adc[base + i] =
+                    (uint16_t)((((uint16_t)m.data[2 * i] << 8) | m.data[2 * i + 1]) & 0x0FFF);
+            }
+            st->adc_valid = true;
+            return ESP_OK;
+        }
+        if (sub == 2 && m.data_length_code >= 1) {       /* bitmap confronto soglie */
+            st->adc_over = m.data[0];
+            st->adc_over_valid = true;
+            return ESP_OK;
+        }
+        return ESP_ERR_NOT_FOUND;
     }
 
     return ESP_ERR_NOT_FOUND;

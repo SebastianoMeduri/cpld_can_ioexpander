@@ -17,6 +17,7 @@ SRC=(
   rtl/quad_decoder.vhd
   rtl/io_expander.vhd
   rtl/can_ioexpander_top.vhd
+  rtl/can_ioexpander_maxv.vhd
   sim/tb_can_ioexpander.vhd
 )
 

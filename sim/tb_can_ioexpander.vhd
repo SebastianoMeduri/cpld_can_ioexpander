@@ -73,6 +73,9 @@ architecture sim of tb_can_ioexpander is
   signal safe_ch2  : std_logic := '1';
   signal enc_a     : std_logic_vector(7 downto 0) := (others => '0');
   signal enc_b     : std_logic_vector(7 downto 0) := (others => '0');
+  -- pattern ADC di test: ch0=0x0AAA, ch1=0x0555, resto 0 (12 bit utili per canale)
+  signal adc_val   : std_logic_vector(127 downto 0) :=
+      x"00000000000000000000000005550AAA";
   signal io        : std_logic_vector(31 downto 0);
   signal tb_io_drv : std_logic_vector(31 downto 0) := (others => 'Z');
   signal led_err   : std_logic;
@@ -84,6 +87,10 @@ architecture sim of tb_can_ioexpander is
   constant ID_ENCPER : std_logic_vector(10 downto 0) := "000" & "0001" & "0000";
   constant ID_ENCRST : std_logic_vector(10 downto 0) := "101" & "0001" & "0000";
   constant ID_ENC0   : std_logic_vector(10 downto 0) := "110" & "0001" & "0000";
+  constant ID_ANA0   : std_logic_vector(10 downto 0) := "111" & "0001" & "0000";
+  constant ID_THR0   : std_logic_vector(10 downto 0) := "010" & "0001" & "0001"; -- CONFIG SUB=1
+  constant ID_THR1   : std_logic_vector(10 downto 0) := "010" & "0001" & "0010"; -- CONFIG SUB=2
+  constant ID_ACMP   : std_logic_vector(10 downto 0) := "111" & "0001" & "0010"; -- ANALOG SUB=2
 
 begin
 
@@ -151,7 +158,8 @@ begin
   -- Nodo B: DUT (I/O expander)
   ----------------------------------------------------------------------------
   u_dut : entity work.can_ioexpander_top
-    generic map (MS_TICKS => 20, ENC_PERIOD_MS => 0)   -- ms veloce, periodico off all'avvio
+    generic map (MS_TICKS => 20, ENC_PERIOD_MS => 0,    -- ms veloce, periodico off all'avvio
+                 ADC_PRESENT => true)                   -- abilita la trasmissione ANALOG
     port map (
       clk       => clk,
       rst_n     => rst_n,
@@ -162,6 +170,7 @@ begin
       safe_ch2  => safe_ch2,
       enc_a     => enc_a,
       enc_b     => enc_b,
+      adc_val   => adc_val,
       io        => io,
       led_error => led_err
     );
@@ -457,6 +466,52 @@ begin
       report "FAIL: encoder 0 non azzerato, letto 0x" &
              to_hstring(rxd(63 downto 48)) severity failure;
     report "TB: OK encoder 0 azzerato via CAN";
+
+    ------------------------------------------------------------------------
+    -- 9) Letture ADC (messaggio ANALOG) — periodico gia' abilitato
+    ------------------------------------------------------------------------
+    report "TB: attendo trama ANALOG (blocco 0)";
+    got := false;
+    while not got loop
+      wait until h_rxvld = '1' for 4 ms;
+      assert h_rxvld = '1' report "TIMEOUT: nessuna trama ANALOG ricevuta" severity failure;
+      if h_rxid = ID_ANA0 then
+        rxd := h_rxdata;
+        got := true;
+      end if;
+      wait for CLK_PERIOD;
+    end loop;
+    assert rxd(63 downto 48) = x"0AAA" and rxd(47 downto 32) = x"0555"
+      report "FAIL: letture ADC errate, atteso ch0=0x0AAA ch1=0x0555, letto ch0=0x" &
+             to_hstring(rxd(63 downto 48)) & " ch1=0x" & to_hstring(rxd(47 downto 32))
+      severity failure;
+    report "TB: OK letture ADC via CAN (ch0=0x0AAA, ch1=0x0555)";
+
+    ------------------------------------------------------------------------
+    -- 10) Soglie ADC configurabili + bitmap di confronto (ANALOG SUB=2)
+    --     adc: ch0=0x0AAA(2730), ch1=0x0555(1365), ch2..7=0
+    --     soglie: ch0=0x0500 -> 1, ch1=0x0800 -> 0, ch2..7=0x0001 -> 0
+    --     bitmap atteso = 0x01 (solo canale 0 sopra soglia)
+    ------------------------------------------------------------------------
+    report "TB: configuro soglie ADC (CONFIG SUB=1/2)";
+    host_send(ID_THR0, "1000", x"0500" & x"0800" & x"0001" & x"0001"); -- ch0..3
+    host_send(ID_THR1, "1000", x"0001" & x"0001" & x"0001" & x"0001"); -- ch4..7
+
+    report "TB: attendo bitmap di confronto (ANALOG SUB=2)";
+    got := false;
+    while not got loop
+      wait until h_rxvld = '1' for 4 ms;
+      assert h_rxvld = '1' report "TIMEOUT: nessun bitmap di confronto ricevuto" severity failure;
+      if h_rxid = ID_ACMP then
+        rxd := h_rxdata;
+        got := true;
+      end if;
+      wait for CLK_PERIOD;
+    end loop;
+    assert rxd(63 downto 56) = x"01"
+      report "FAIL: bitmap confronto errato, atteso 0x01, letto 0x" &
+             to_hstring(rxd(63 downto 56)) severity failure;
+    report "TB: OK bitmap confronto soglie = 0x01 (solo ch0 sopra soglia)";
 
     report "TB: *** TUTTI I TEST SUPERATI ***" severity note;
     sim_end <= true;

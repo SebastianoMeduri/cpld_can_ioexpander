@@ -32,7 +32,8 @@ entity can_ioexpander_top is
     SJW   : positive := 3;
     -- encoder: base tempi e periodo di trasmissione
     MS_TICKS      : positive := 20000;  -- cicli di clk per 1 ms (20 MHz)
-    ENC_PERIOD_MS : natural  := 10      -- periodo TX conteggi encoder (0 = off)
+    ENC_PERIOD_MS : natural  := 10;     -- periodo TX conteggi encoder (0 = off)
+    ADC_PRESENT   : boolean  := false   -- true: trasmette anche le letture ADC (MAX 10)
   );
   port (
     clk       : in    std_logic;
@@ -51,6 +52,9 @@ entity can_ioexpander_top is
     -- 8 encoder incrementali in quadratura (canali A/B)
     enc_a     : in    std_logic_vector(7 downto 0);
     enc_b     : in    std_logic_vector(7 downto 0);
+
+    -- letture ADC (8 canali a 16 bit); usato solo se ADC_PRESENT=true
+    adc_val   : in    std_logic_vector(127 downto 0) := (others => '0');
 
     io        : inout std_logic_vector(31 downto 0);
 
@@ -124,7 +128,8 @@ begin
   end generate;
 
   u_io : entity work.io_expander
-    generic map (MS_TICKS => MS_TICKS, ENC_PERIOD_MS => ENC_PERIOD_MS)
+    generic map (MS_TICKS => MS_TICKS, ENC_PERIOD_MS => ENC_PERIOD_MS,
+                 ADC_PRESENT => ADC_PRESENT)
     port map (
       clk        => clk,
       rst_n      => rst_n,
@@ -145,6 +150,7 @@ begin
       tx_done    => tx_done,
       enc_count  => enc_count,
       enc_rst    => enc_rst,
+      adc_val    => adc_val,
       io         => io
     );
 

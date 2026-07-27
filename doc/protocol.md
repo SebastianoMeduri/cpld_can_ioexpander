@@ -29,14 +29,15 @@ ID[3:0]  = SUB    (0000; per ENC_DATA = indice blocco)
 |-------|------------|-------------|---------------------------------------------------|
 | `000` | ENC_PERIOD | host -> exp | periodo TX encoder in ms: `data[63:48]` (0 = off) |
 | `001` | OUTPUT     | host -> exp | imposta i valori delle uscite                     |
-| `010` | CONFIG     | host -> exp | imposta la direzione dei pin                      |
+| `010` | CONFIG     | host -> exp | SUB=0 direzione pin; SUB=1/2 soglie ADC (MAX 10)  |
 | `011` | REQUEST    | host -> exp | richiede l'invio immediato dello STATUS           |
 | `100` | STATUS     | exp -> host | stato corrente dei pin                            |
 | `101` | ENC_RESET  | host -> exp | `data[7:0]`: bit i azzera il contatore encoder i  |
 | `110` | ENC_DATA   | exp -> host | conteggi encoder (SUB=0 → enc0..3, SUB=1 → enc4..7) |
+| `111` | ANALOG     | exp -> host | letture ADC — solo MAX 10 (SUB=0 → ch0..3, SUB=1 → ch4..7, SUB=2 → bitmap confronto soglie) |
 
-I codici FUNC dei comandi host->exp sono piu' bassi di ENC_DATA cosi' che l'host
-vinca sempre l'arbitraggio anche durante la trasmissione periodica.
+I codici FUNC dei comandi host->exp sono piu' bassi di ENC_DATA/ANALOG cosi' che
+l'host vinca sempre l'arbitraggio anche durante la trasmissione periodica.
 
 ## Mappatura dei pin nel payload
 
@@ -52,9 +53,14 @@ byte3 (data[39:32]) = pin 7..0
 
 ## Dettaglio dei messaggi
 
-### CONFIG (FUNC=010, DLC=4)
-`data[63:32]` = maschera di direzione. Bit a `1` = pin in **uscita**,
-bit a `0` = pin in **ingresso** (default al reset: tutti ingressi, alta impedenza).
+### CONFIG (FUNC=010)
+Il campo **SUB** (`ID[3:0]`) seleziona il sotto-comando:
+
+* **SUB=0** (DLC=4) — *direzione pin*: `data[63:32]` = maschera di direzione.
+  Bit a `1` = pin in **uscita**, bit a `0` = pin in **ingresso**
+  (default al reset: tutti ingressi, alta impedenza).
+* **SUB=1 / SUB=2** (DLC=8) — *soglie ADC* (solo MAX 10): impostano i registri di
+  soglia dei canali analogici (vedi sezione «Soglie e confronto ADC»).
 
 ### OUTPUT (FUNC=001, DLC=4 oppure 8)
 `data[63:32]` = valori da applicare ai pin configurati come uscita.
@@ -121,6 +127,52 @@ basso nei byte piu' significativi:
   (`data[63:48]`); 0 disabilita la trasmissione periodica.
 * **ENC_RESET** (FUNC=101): `data[7:0]` bitmask, il bit i azzera il contatore
   dell'encoder i.
+
+## Ingressi analogici (solo MAX 10)
+
+Sul target MAX 10 (10M08SA, ADC 12 bit integrato) l'expander legge **8 canali
+analogici** e li trasmette con il messaggio **ANALOG** (FUNC=111, DLC=8), con la
+stessa cadenza periodica degli encoder:
+
+* **SUB=0** (`ID[3:0]=0000`): canali 0..3;
+* **SUB=1** (`ID[3:0]=0001`): canali 4..7.
+
+Ogni trama contiene 4 valori `uint16` (12 bit utili, giustificati a destra),
+canale di indice piu' basso nei byte piu' significativi:
+`data[63:48]=ch(k)`, `[47:32]=ch(k+1)`, `[31:16]=ch(k+2)`, `[15:0]=ch(k+3)`.
+
+Il messaggio ANALOG è assente sul MAX V (CPLD senza ADC). Vedere il manuale per
+l'abilitazione dell'ADC sul MAX 10.
+
+## Soglie e confronto ADC (solo MAX 10)
+
+Ogni canale analogico ha un **registro di soglia a 12 bit** configurabile via CAN.
+L'expander confronta di continuo la lettura con la soglia e mantiene un **bitmap a
+8 bit** (`over`): `over[i] = 1` se `adc[i] >= soglia[i]`.
+
+### Impostazione delle soglie — CONFIG SUB=1/2 (DLC=8)
+
+Le soglie si scrivono con il messaggio CONFIG usando il campo SUB, 4 canali per
+trama con lo stesso ordinamento delle letture (canale più basso nei byte alti):
+
+* **SUB=1** (`ID[3:0]=0001`): soglie ch0..3 —
+  `data[63:48]=thr(ch0)`, `[47:32]=thr(ch1)`, `[31:16]=thr(ch2)`, `[15:0]=thr(ch3)`;
+* **SUB=2** (`ID[3:0]=0010`): soglie ch4..7 (stesso schema, ch4..7).
+
+Si usano i 12 bit meno significativi di ogni `uint16`. Al reset le soglie valgono
+**0xFFF** (fondo scala) → nessun canale in allarme finché non vengono configurate.
+
+### Notifica del confronto — ANALOG SUB=2 (DLC=1)
+
+L'expander invia il bitmap `over` con il messaggio ANALOG `SUB=2`:
+`data[63:56]` = `over[7:0]` (bit `i` = canale `i` sopra soglia). La trama è inviata:
+
+* **in coda** alla sequenza periodica delle letture ANALOG;
+* **immediatamente** ad ogni variazione del bitmap (funziona da comparatore/allarme
+  analogico, come lo STATUS per gli ingressi digitali).
+
+Esempio (NODE=0001): scrittura soglie ch0..3 → `ID=0x211 DLC=8`; bitmap di
+confronto → `ID=0x712 DLC=1 DATA=xx…` con `data[63:56]` = bitmap.
 
 ## Gestione errori e fault confinement
 
