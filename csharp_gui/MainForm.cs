@@ -20,6 +20,7 @@ namespace ExpanderTester
 
         private ushort _channel = PCANBasic.PCAN_USBBUS1;
         private bool _connected = false;
+        private MotorForm _motorForm;
 
         // controlli
         private ComboBox _cboChannel, _cboBaud;
@@ -65,7 +66,15 @@ namespace ExpanderTester
             _btnConnect = new Button { Text = "Connetti", Location = new Point(395, 23), Size = new Size(100, 26) };
             _btnConnect.Click += (s, e) => ToggleConnect();
             _lblConn = new Label { Text = "Disconnesso", Location = new Point(510, 27), AutoSize = true, ForeColor = Color.Firebrick };
-            gConn.Controls.AddRange(new Control[] { _cboChannel, _cboBaud, lblNode, _numNode, _btnConnect, _lblConn });
+            var btnMotor = new Button { Text = "Motori (VNH7100AS)…", Location = new Point(700, 23), Size = new Size(200, 26) };
+            btnMotor.Click += (s, e) =>
+            {
+                if (_motorForm == null || _motorForm.IsDisposed)
+                    _motorForm = new MotorForm((f, sub, d, l, t) => SendRaw(f, sub, d, l, t)) { Owner = this };
+                _motorForm.Show();
+                _motorForm.BringToFront();
+            };
+            gConn.Controls.AddRange(new Control[] { _cboChannel, _cboBaud, lblNode, _numNode, _btnConnect, _lblConn, btnMotor });
             Controls.Add(gConn);
 
             // ---- Direzione (CONFIG) ----
@@ -383,11 +392,13 @@ namespace ExpanderTester
                         _adcVals[baseIdx + i].Text = v.ToString();
                     }
                 }
-                else if (sub == 2 && msg.LEN >= 1)     // bitmap confronto soglie
+                else if (sub == 2 && msg.LEN >= 1)     // bitmap confronto soglie / sovracorrente
                 {
                     int over = msg.DATA[0];
                     for (int i = 0; i < 8; i++)
                         _adcVals[i].BackColor = ((over >> i) & 1) != 0 ? Color.LightSalmon : Color.LightYellow;
+                    if (_motorForm != null && !_motorForm.IsDisposed)
+                        _motorForm.UpdateAlarm((byte)over);   // rispecchia il LED led_alarm
                 }
             }
         }

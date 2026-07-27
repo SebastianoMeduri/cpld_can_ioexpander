@@ -204,8 +204,10 @@ begin
         enc_period <= to_unsigned(ENC_PERIOD_MS, 16);
         ms_presc   <= 0;
         ms_cnt     <= (others => '0');
-        thr        <= (others => '1');  -- soglie a fondo scala: comparatore a riposo
-        cmp_d      <= (others => '0');
+        if ADC_PRESENT then             -- (evita logica morta sui target senza ADC)
+          thr   <= (others => '1');     -- soglie a fondo scala: comparatore a riposo
+          cmp_d <= (others => '0');
+        end if;
         pending_cmp <= '0';
       else
         -- impulso di reset encoder di default a 0 (attivo 1 clk su comando)

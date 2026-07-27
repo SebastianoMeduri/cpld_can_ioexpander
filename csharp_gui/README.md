@@ -18,6 +18,12 @@ descritto in [../doc/protocol.md](../doc/protocol.md): frame standard 2.0A.
 - **Analogico (solo MAX 10)**: 8 letture ADC (12 bit) dalle trame ANALOG, 8 soglie
   configurabili (CONFIG SUB=1/2); ogni riquadro diventa **rosso** quando il canale
   supera la soglia (bitmap di confronto ANALOG SUB=2), **giallo** se sotto.
+- **Motori (VNH7100AS)**: finestra dedicata (pulsante in alto a destra) per la
+  variante motore — modalità (coast/avanti/indietro/brake) e duty 0..63 per gli 8
+  motori (63 = fondoscala = ON), STOP globale, e configurazione dello stato sicuro
+  (coast/brake) + SEL0. Lampada di **sovracorrente per motore** + indicatore
+  globale **"ALLARME MOTORI"** che rispecchia il LED hardware `led_alarm` (dal
+  bitmap ANALOG SUB=2). Correnti dettagliate nel pannello Analogico.
 - **Log**: traffico CAN TX/RX in tempo reale.
 
 ## Requisiti
@@ -63,5 +69,6 @@ csharp_gui/
   ExpanderTester.csproj   progetto .NET (net8.0-windows, x64, WinForms)
   Program.cs              entry point
   MainForm.cs             GUI + logica di test (comandi + ricezione)
+  MotorForm.cs            finestra di controllo motori (variante VNH7100AS)
   PCANBasic.cs            wrapper P/Invoke minimale per PCAN-Basic
 ```

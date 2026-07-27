@@ -1,5 +1,6 @@
 # Artefatti di simulazione
 sim/work/
+sim/work_motor/
 *.ghw
 *.vcd
 *.cf

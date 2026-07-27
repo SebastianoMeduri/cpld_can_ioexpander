@@ -1,0 +1,7 @@
+QUARTUS_VERSION = "25.1"
+DATE = "2026/07/27"
+
+# Progetto Quartus per la VARIANTE MOTORE su MAX 10 (kit 10M08SAE144, 50 MHz).
+# Top level = can_motor_max10 (pilota 8 driver full-bridge VNH7100AS).
+
+PROJECT_REVISION = "can_motor_max10"

@@ -126,6 +126,23 @@ esp_err_t can_ioexpander_set_adc_thresholds(uint8_t node, const uint16_t thr[8])
     return ESP_OK;
 }
 
+/* MOTOR (FUNC=001): byte k = motore k, [7:6]=mode, [5:0]=duty (0..63). */
+esp_err_t can_ioexpander_set_motor(uint8_t node, const uint8_t mode[8], const uint8_t duty6[8])
+{
+    uint8_t d[8];
+    for (int i = 0; i < 8; i++) {
+        d[i] = (uint8_t)(((mode[i] & 0x3) << 6) | (duty6[i] & 0x3F));
+    }
+    return send_frame(IOEXP_ID(FUNC_OUTPUT, node, 0), d, 8);   /* FUNC 001 = MOTOR */
+}
+
+/* CONFIG SUB=0 (motore): byte0 bit0 = safe_mode (1=brake), bit1 = SEL0. */
+esp_err_t can_ioexpander_set_motor_safe_mode(uint8_t node, bool brake, bool sel0)
+{
+    uint8_t d[1] = { (uint8_t)((brake ? 0x01 : 0x00) | (sel0 ? 0x02 : 0x00)) };
+    return send_frame(IOEXP_ID(FUNC_CONFIG, node, 0), d, 1);
+}
+
 esp_err_t can_ioexpander_poll(uint8_t node, can_ioexpander_state_t *st, uint32_t timeout_ms)
 {
     twai_message_t m;

@@ -52,8 +52,9 @@ void app_main(void)
                      (unsigned long)st.inputs, st.enc[0], st.enc[1], st.enc[2], st.enc[3]);
         }
         if (e == ESP_OK && st.adc_valid) {
-            ESP_LOGI(TAG, "adc0=%u adc1=%u adc2=%u adc3=%u  over=0x%02x",
-                     st.adc[0], st.adc[1], st.adc[2], st.adc[3], st.adc_over);
+            ESP_LOGI(TAG, "adc0=%u adc1=%u adc2=%u adc3=%u  over=0x%02x %s",
+                     st.adc[0], st.adc[1], st.adc[2], st.adc[3], st.adc_over,
+                     can_ioexpander_motor_alarm(&st) ? "[ALLARME]" : "");
         }
 
         /* ogni 500 ms sposta il pattern sulle uscite (pin 31..16) */

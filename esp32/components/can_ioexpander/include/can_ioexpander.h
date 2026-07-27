@@ -72,6 +72,44 @@ esp_err_t can_ioexpander_reset_encoders(uint8_t node, uint8_t enc_mask);
  */
 esp_err_t can_ioexpander_set_adc_thresholds(uint8_t node, const uint16_t thr[8]);
 
+/* ------------------------------------------------------------------------ *
+ * Variante MOTORE (firmware can_motor_top per 8 driver VNH7100AS).
+ * Il trasporto CAN e' lo stesso; le correnti MultiSense e il bitmap di
+ * sovracorrente arrivano da can_ioexpander_poll() nei campi st.adc[]/adc_over.
+ * ------------------------------------------------------------------------ */
+
+/* Modalita' di comando di un motore (2 bit). */
+typedef enum {
+    MOTOR_COAST = 0,   /* ponte in alta impedenza (ruota libera)      */
+    MOTOR_FWD   = 1,   /* avanti  (INA=1, INB=0, PWM=duty)            */
+    MOTOR_REV   = 2,   /* indietro (INA=0, INB=1, PWM=duty)           */
+    MOTOR_BRAKE = 3    /* frenata a GND (INA=INB=0, PWM=1)            */
+} motor_mode_t;
+
+/*
+ * MOTOR: comanda gli 8 motori in una sola trama. Per ciascun canale:
+ *   mode[i]  = motor_mode_t (COAST/FWD/REV/BRAKE)
+ *   duty6[i] = duty 0..63 (6 bit); 63 = fondoscala -> PWM statico = ON/OFF.
+ */
+esp_err_t can_ioexpander_set_motor(uint8_t node, const uint8_t mode[8], const uint8_t duty6[8]);
+
+/*
+ * CONFIG (motore): stato sicuro allo scatto della sicurezza e valore comune SEL0.
+ *   brake = false -> COAST (ruota libera), true -> BRAKE (frenata a GND)
+ *   sel0  = valore comune sul pin SEL0 dei driver (selezione MultiSense)
+ */
+esp_err_t can_ioexpander_set_motor_safe_mode(uint8_t node, bool brake, bool sel0);
+
+/*
+ * Allarme motori: true se almeno un canale è in sovracorrente. Equivale al LED
+ * hardware `led_alarm` (OR del bitmap di sovracorrente st.adc_over). Valido dopo
+ * aver ricevuto una trama ANALOG SUB=2 (st.adc_over_valid).
+ */
+static inline bool can_ioexpander_motor_alarm(const can_ioexpander_state_t *st)
+{
+    return st->adc_over != 0;
+}
+
 /*
  * Riceve una trama (attesa max timeout_ms) e, se proviene dal nodo indicato,
  * aggiorna *st. Ritorna:

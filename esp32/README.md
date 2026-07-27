@@ -56,6 +56,9 @@ idf.py build flash monitor
 | `can_ioexpander_set_enc_period(node,ms)` | periodo TX encoder (0=off) |
 | `can_ioexpander_reset_encoders(node,mask)` | azzera contatori (bit i=encoder i) |
 | `can_ioexpander_set_adc_thresholds(node,thr[8])` | soglie ADC 12 bit (solo MAX 10) |
+| `can_ioexpander_set_motor(node,mode[8],duty6[8])` | comando 8 motori (variante VNH7100AS) |
+| `can_ioexpander_set_motor_safe_mode(node,brake,sel0)` | stato sicuro coast/brake + SEL0 |
+| `can_ioexpander_motor_alarm(&st)` | true se ≥1 motore in sovracorrente (= LED `led_alarm`) |
 | `can_ioexpander_poll(node,&st,timeout)` | riceve STATUS/ENC_DATA/ANALOG → aggiorna `st` |
 
 `st.inputs` è la word a 32 bit dei pin (bit i = pin i); `st.enc[0..7]` sono i
@@ -79,11 +82,30 @@ while (1) {
 }
 ```
 
+## Variante motore (VNH7100AS)
+
+Con il firmware `can_motor_top` (8 driver full-bridge VNH7100AS) il driver invia i
+comandi motore e le soglie di corrente, mentre correnti e sovracorrenti arrivano
+dalla stessa `poll()` in `st.adc[]` / `st.adc_over`:
+
+```c
+uint8_t mode[8] = { MOTOR_FWD, MOTOR_REV, 0,0,0,0,0,0 };
+uint8_t duty[8] = { 63, 32,      0,0,0,0,0,0 };  // motore0 ON pieno, motore1 meta'
+can_ioexpander_set_motor(1, mode, duty);
+can_ioexpander_set_motor_safe_mode(1, /*brake=*/false, /*sel0=*/false);
+
+uint16_t ilim[8]; for (int i=0;i<8;i++) ilim[i]=0x600;  // soglia sovracorrente
+can_ioexpander_set_adc_thresholds(1, ilim);
+// in poll: st.adc[i] = corrente motore i, st.adc_over bit i = sovracorrente
+```
+
 ## Note
 
 * Le funzioni ADC (`set_adc_thresholds`, `st.adc[]`, `st.adc_over`) hanno effetto
-  solo sul target **MAX 10** con ADC abilitato; sul MAX V l'expander non invia
-  trame ANALOG e i campi restano non validi.
+  solo sui target con ADC (**MAX 10**); sul MAX V l'expander non invia trame
+  ANALOG e i campi restano non validi.
+* Sul firmware motore la trama STATUS ha un formato diverso (flag + bitmap) e non
+  viene decodificata in `st.inputs`: usa `st.adc_over` per le sovracorrenti.
 * Il driver ignora le trame a identificatore esteso (29 bit); l'expander le
   tollera comunque sul bus (2.0B passive).
 * Verifica che il sample point del preset `TWAI_TIMING_CONFIG_500KBITS()`

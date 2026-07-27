@@ -111,10 +111,18 @@ generic per il clock a 50 MHz).
 | `rtl/can_ioexpander_maxv.vhd` | `can_ioexpander_maxv` | Wrapper per MAX V (20 MHz, senza ADC) |
 | `rtl/can_ioexpander_max10.vhd` | `can_ioexpander_max10` | Wrapper per MAX 10 (50 MHz) |
 | `rtl/adc_reader.vhd` | `adc_reader` | Front-end ADC MAX 10 (8 canali) — richiede l'IP Modular ADC |
+| `rtl/pwm_gen.vhd` | `pwm_gen` | PWM a canale singolo con prescaler + fondoscala (variante motore) |
+| `rtl/motor_expander.vhd` | `motor_expander` | Livello applicativo motore: comando, PWM ×8, sicurezza, telemetria |
+| `rtl/can_motor_top.vhd` | `can_motor_top` | Top variante motore (controller + motor_expander) |
+| `rtl/can_motor_max10.vhd` | `can_motor_max10` | Wrapper MAX 10 della variante motore |
 
 **Ordine di compilazione:** `can_pkg` → `can_bit_timing` → `can_mac` →
 `can_controller` → `quad_decoder` → `io_expander` → `can_ioexpander_top`
 → (`can_ioexpander_max10`).
+
+**Variante motore (VNH7100AS):** `can_pkg` → `can_bit_timing` → `can_mac` →
+`can_controller` → `pwm_gen` → `motor_expander` → `can_motor_top`
+→ (`can_motor_max10`). Vedi [motor_bridge.md](motor_bridge.md).
 
 ### Interfaccia del can_controller (a messaggi)
 

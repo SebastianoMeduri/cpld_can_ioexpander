@@ -1,0 +1,106 @@
+#===============================================================================
+# can_motor_max10.qsf
+# Target: Intel MAX 10  10M08SAE144C8G  (kit 10M08S 144-EQFP)
+# VARIANTE MOTORE: pilota 8 driver full-bridge STMicro VNH7100AS.
+# Top level = can_motor_max10 (wrapper con generic per clock 50 MHz).
+#===============================================================================
+
+#-------------------------------------------------------------------------------
+# Dispositivo
+#-------------------------------------------------------------------------------
+set_global_assignment -name FAMILY "MAX 10"
+set_global_assignment -name DEVICE 10M08SAE144C8G
+set_global_assignment -name TOP_LEVEL_ENTITY can_motor_max10
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+
+#-------------------------------------------------------------------------------
+# Opzioni di compilazione
+#-------------------------------------------------------------------------------
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+
+# Configurazione interna a immagine singola (genera il .pof per la flash on-chip)
+set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE COMP IMAGE"
+
+# Pin non usati: ingresso tri-statato
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+
+#-------------------------------------------------------------------------------
+# Sorgenti RTL (condivisi) + moduli motore + wrapper MAX 10
+#-------------------------------------------------------------------------------
+set_global_assignment -name VHDL_FILE ../rtl/can_pkg.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_bit_timing.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_mac.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_controller.vhd
+set_global_assignment -name VHDL_FILE ../rtl/pwm_gen.vhd
+set_global_assignment -name VHDL_FILE ../rtl/motor_expander.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_motor_top.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_motor_max10.vhd
+# Per le letture di corrente reali aggiungere anche il front-end ADC e l'IP:
+# set_global_assignment -name VHDL_FILE ../rtl/adc_reader.vhd
+# set_global_assignment -name QSYS_FILE ip/modular_adc.qsys   ;# IP generato in Quartus
+
+set_global_assignment -name SDC_FILE can_motor_max10.sdc
+
+#-------------------------------------------------------------------------------
+# Pinout (pin gia' validati dal Fitter; le 32 uscite mot[] sui pin bidir del
+# target). Applicabile anche via Tcl Console: source assign_pins.tcl
+#-------------------------------------------------------------------------------
+set_location_assignment PIN_28  -to clk
+set_location_assignment PIN_6   -to rst_n
+set_location_assignment PIN_7   -to can_rxd
+set_location_assignment PIN_59  -to can_txd
+set_location_assignment PIN_57  -to led_error
+set_location_assignment PIN_79  -to led_alarm
+set_location_assignment PIN_15  -to node_addr[0]
+set_location_assignment PIN_56  -to node_addr[1]
+set_location_assignment PIN_61  -to node_addr[2]
+set_location_assignment PIN_66  -to node_addr[3]
+set_location_assignment PIN_70  -to safe_ch1
+set_location_assignment PIN_78  -to safe_ch2
+
+# mot[7:0]   = INA(0..7)   direzione A
+set_location_assignment PIN_8   -to mot[0]
+set_location_assignment PIN_10  -to mot[1]
+set_location_assignment PIN_11  -to mot[2]
+set_location_assignment PIN_12  -to mot[3]
+set_location_assignment PIN_13  -to mot[4]
+set_location_assignment PIN_14  -to mot[5]
+set_location_assignment PIN_17  -to mot[6]
+set_location_assignment PIN_21  -to mot[7]
+# mot[15:8]  = INB(0..7)   direzione B
+set_location_assignment PIN_22  -to mot[8]
+set_location_assignment PIN_55  -to mot[9]
+set_location_assignment PIN_60  -to mot[10]
+set_location_assignment PIN_62  -to mot[11]
+set_location_assignment PIN_88  -to mot[12]
+set_location_assignment PIN_92  -to mot[13]
+set_location_assignment PIN_93  -to mot[14]
+set_location_assignment PIN_96  -to mot[15]
+# mot[23:16] = PWM(0..7)   modulazione
+set_location_assignment PIN_97  -to mot[16]
+set_location_assignment PIN_98  -to mot[17]
+set_location_assignment PIN_99  -to mot[18]
+set_location_assignment PIN_100 -to mot[19]
+set_location_assignment PIN_101 -to mot[20]
+set_location_assignment PIN_102 -to mot[21]
+set_location_assignment PIN_111 -to mot[22]
+set_location_assignment PIN_112 -to mot[23]
+# mot[31:24] = SEL0(0..7)  selezione MultiSense
+set_location_assignment PIN_114 -to mot[24]
+set_location_assignment PIN_118 -to mot[25]
+set_location_assignment PIN_119 -to mot[26]
+set_location_assignment PIN_120 -to mot[27]
+set_location_assignment PIN_121 -to mot[28]
+set_location_assignment PIN_122 -to mot[29]
+set_location_assignment PIN_124 -to mot[30]
+set_location_assignment PIN_134 -to mot[31]
+
+#===============================================================================
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
