@@ -1,0 +1,7 @@
+QUARTUS_VERSION = "21.1"
+DATE = "2026/07/18"
+
+# Progetto Quartus per il target MAX 10 (kit 10M08SAE144, 50 MHz).
+# Top level = can_ioexpander_max10 (wrapper che fissa i generic a 50 MHz).
+
+PROJECT_REVISION = "can_ioexpander_max10"

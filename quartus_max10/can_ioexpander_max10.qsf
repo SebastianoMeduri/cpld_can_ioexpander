@@ -1,0 +1,128 @@
+#===============================================================================
+# can_ioexpander_max10.qsf
+# Target: Intel MAX 10  10M08SAE144C8G  (kit di valutazione 10M08S 144-EQFP)
+# FPGA flash-based: configurazione INTERNA (non volatile), file .pof via JTAG.
+# Top level = can_ioexpander_max10 (wrapper con generic per clock 50 MHz).
+#===============================================================================
+
+#-------------------------------------------------------------------------------
+# Dispositivo
+#-------------------------------------------------------------------------------
+set_global_assignment -name FAMILY "MAX 10"
+set_global_assignment -name DEVICE 10M08SAE144C8G
+set_global_assignment -name TOP_LEVEL_ENTITY can_ioexpander_max10
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+
+#-------------------------------------------------------------------------------
+# Opzioni di compilazione
+#-------------------------------------------------------------------------------
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+
+# Configurazione interna a immagine singola (genera il .pof per la flash on-chip)
+set_global_assignment -name INTERNAL_FLASH_UPDATE_MODE "SINGLE COMP IMAGE"
+
+# Pin non usati: ingresso tri-statato
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+
+#-------------------------------------------------------------------------------
+# Sorgenti RTL (condivisi col target MAX V) + wrapper MAX 10
+#-------------------------------------------------------------------------------
+set_global_assignment -name VHDL_FILE ../rtl/can_pkg.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_bit_timing.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_mac.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_controller.vhd
+set_global_assignment -name VHDL_FILE ../rtl/quad_decoder.vhd
+set_global_assignment -name VHDL_FILE ../rtl/io_expander.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_ioexpander_top.vhd
+set_global_assignment -name VHDL_FILE ../rtl/can_ioexpander_max10.vhd
+
+set_global_assignment -name SDC_FILE can_ioexpander_max10.sdc
+
+#-------------------------------------------------------------------------------
+# Assegnazione dei pin  --  DA COMPLETARE
+#
+# Per una prima compilazione (verifica dell'occupazione, ~16% del 10M08) si puo'
+# lasciare l'auto-placement: il progetto compila e il Fitter riporta le risorse.
+#
+# Per programmare il KIT, assegna i pin secondo il pin-out del kit (device pin ->
+# header 2x20 J8/J9, Arduino, LED D1..D5, SW3, oscillatore 50 MHz su clock global):
+#   - clk       -> uscita oscillatore 50 MHz (pin clock dedicato del kit)
+#   - rst_n     -> SW1 o un pin degli header
+#   - can_rxd/can_txd -> due GPIO verso un transceiver CAN 3.3V esterno
+#   - node_addr[3:0]  -> 4 vie di SW3
+#   - led_error -> uno dei LED D1..D5
+#   - io[31:0], enc_a[7:0], enc_b[7:0] -> header GPIO 2x20 (J8/J9) e Arduino
+# Il pin-out esatto del kit e' nel file di pinout/schematico del kit stesso.
+#-------------------------------------------------------------------------------
+# set_location_assignment PIN_xx -to clk
+# ...
+
+#===============================================================================
+
+set_global_assignment -name LAST_QUARTUS_VERSION "25.1std.0 Lite Edition"
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_location_assignment PIN_28 -to clk
+set_location_assignment PIN_6 -to rst_n
+set_location_assignment PIN_7 -to can_rxd
+set_location_assignment PIN_59 -to can_txd
+set_location_assignment PIN_15 -to node_addr[0]
+set_location_assignment PIN_56 -to node_addr[1]
+set_location_assignment PIN_61 -to node_addr[2]
+set_location_assignment PIN_66 -to node_addr[3]
+set_location_assignment PIN_57 -to led_error
+set_location_assignment PIN_70 -to safe_ch1
+set_location_assignment PIN_78 -to safe_ch2
+set_location_assignment PIN_8 -to io[0]
+set_location_assignment PIN_10 -to io[1]
+set_location_assignment PIN_11 -to io[2]
+set_location_assignment PIN_12 -to io[3]
+set_location_assignment PIN_13 -to io[4]
+set_location_assignment PIN_14 -to io[5]
+set_location_assignment PIN_17 -to io[6]
+set_location_assignment PIN_21 -to io[7]
+set_location_assignment PIN_22 -to io[8]
+set_location_assignment PIN_55 -to io[9]
+set_location_assignment PIN_60 -to io[10]
+set_location_assignment PIN_62 -to io[11]
+set_location_assignment PIN_88 -to io[12]
+set_location_assignment PIN_92 -to io[13]
+set_location_assignment PIN_93 -to io[14]
+set_location_assignment PIN_96 -to io[15]
+set_location_assignment PIN_97 -to io[16]
+set_location_assignment PIN_98 -to io[17]
+set_location_assignment PIN_99 -to io[18]
+set_location_assignment PIN_100 -to io[19]
+set_location_assignment PIN_101 -to io[20]
+set_location_assignment PIN_102 -to io[21]
+set_location_assignment PIN_111 -to io[22]
+set_location_assignment PIN_112 -to io[23]
+set_location_assignment PIN_114 -to io[24]
+set_location_assignment PIN_118 -to io[25]
+set_location_assignment PIN_119 -to io[26]
+set_location_assignment PIN_120 -to io[27]
+set_location_assignment PIN_121 -to io[28]
+set_location_assignment PIN_122 -to io[29]
+set_location_assignment PIN_124 -to io[30]
+set_location_assignment PIN_134 -to io[31]
+set_location_assignment PIN_79 -to enc_a[0]
+set_location_assignment PIN_80 -to enc_b[0]
+set_location_assignment PIN_81 -to enc_a[1]
+set_location_assignment PIN_84 -to enc_b[1]
+set_location_assignment PIN_85 -to enc_a[2]
+set_location_assignment PIN_86 -to enc_b[2]
+set_location_assignment PIN_87 -to enc_a[3]
+set_location_assignment PIN_89 -to enc_b[3]
+set_location_assignment PIN_90 -to enc_a[4]
+set_location_assignment PIN_91 -to enc_b[4]
+set_location_assignment PIN_105 -to enc_a[5]
+set_location_assignment PIN_113 -to enc_b[5]
+set_location_assignment PIN_123 -to enc_a[6]
+set_location_assignment PIN_127 -to enc_b[6]
+set_location_assignment PIN_131 -to enc_a[7]
+set_location_assignment PIN_132 -to enc_b[7]
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

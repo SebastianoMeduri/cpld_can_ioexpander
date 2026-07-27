@@ -5,6 +5,10 @@ Il dispositivo integra un controller CAN 2.0A completo (protocollo interamente i
 VHDL, pilota solo un transceiver PHY) e un espansore di **32 pin bidirezionali**
 configurabili singolarmente come ingresso o uscita e comandabili via CAN.
 
+📖 **Documentazione completa:** [doc/MANUALE.md](doc/MANUALE.md) — architettura,
+moduli, protocollo, target di sintesi (MAX V / MAX 10), pinout, simulazione,
+programmazione, note di scheda e strumenti host.
+
 ## Caratteristiche
 
 - Controller **CAN 2.0A** (identificatore standard 11 bit) scritto in VHDL:
@@ -40,18 +44,30 @@ rtl/
   quad_decoder.vhd       Decodificatore di quadratura encoder (x4, 16 bit)
   io_expander.vhd        Espansore I/O, sicurezza, encoder e scheduler TX
   can_ioexpander_top.vhd Top level (controller + espansore + 8 encoder)
+  can_ioexpander_max10.vhd Wrapper per target MAX 10 (generic per clock 50 MHz)
 sim/
   tb_can_ioexpander.vhd  Testbench end-to-end (host + DUT su bus wired-AND)
   run_ghdl.sh            Script di simulazione GHDL (Linux/macOS/Git Bash)
   run_ghdl.ps1           Script di simulazione GHDL (Windows PowerShell)
 doc/
+  MANUALE.md             Manuale completo della piattaforma (riferimento)
   protocol.md            Descrizione del protocollo applicativo
+  technical_report.html  Report tecnico visuale (pinout, timing, simulazione)
 esp32/
   components/can_ioexpander/  Driver ESP-IDF (TWAI) per comandare l'expander
   main/main.c                 Esempio d'uso su ESP32
 csharp_gui/
   ExpanderTester.csproj  GUI di test Windows (WinForms) via PEAK PCAN-USB
+quartus/
+  can_ioexpander.qpf     Progetto Quartus per MAX V 5M1270ZT144 (20 MHz)
+quartus_max10/
+  can_ioexpander_max10.qpf  Progetto Quartus per MAX 10 10M08SAE144 (50 MHz)
 ```
+
+Due target di sintesi condividono lo stesso RTL:
+* **MAX V 5M1270ZT144** (`quartus/`) — CPLD non volatile, 20 MHz, occupazione ~99%.
+* **MAX 10 10M08SAE144** (`quartus_max10/`) — FPGA flash-based non volatile, 50 MHz
+  (via wrapper `can_ioexpander_max10`), molta più capacità (~16%).
 
 Ordine di compilazione: `can_pkg` -> `can_bit_timing` -> `can_mac` ->
 `can_controller` -> `io_expander` -> `can_ioexpander_top` -> testbench.
