@@ -58,6 +58,8 @@ esp32/
   main/main.c                 Esempio d'uso su ESP32
 csharp_gui/
   ExpanderTester.csproj  GUI di test Windows (WinForms) via PEAK PCAN-USB
+qt_gui/
+  CMakeLists.txt         GUI di test Qt 6 / QML (stesse funzioni) via PEAK PCAN-USB
 quartus/
   can_ioexpander.qpf     Progetto Quartus per MAX V 5M1270ZT144 (20 MHz)
 quartus_max10/
