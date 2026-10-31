@@ -22,8 +22,7 @@ descritto in [../doc/protocol.md](../doc/protocol.md): frame standard 2.0A.
 
 ## Requisiti
 
-1. **.NET SDK 8** (o superiore con targeting pack Windows Desktop). Build testata
-   con SDK 9.
+1. **.NET SDK 10** (con runtime Windows Desktop 10). Build testata con SDK 10.0.402.
 2. **Driver + PCAN-Basic di PEAK** installati. Serve **`PCANBasic.dll` (x64)**
    accanto all'eseguibile oppure nel PATH di sistema (l'installer PCAN-Basic lo
    mette in `Windows\System32`).
@@ -39,7 +38,7 @@ descritto in [../doc/protocol.md](../doc/protocol.md): frame standard 2.0A.
 ```powershell
 cd csharp_gui
 dotnet build -c Release
-# copia PCANBasic.dll (x64) in bin\Release\net8.0-windows\  se non e' nel PATH
+# copia PCANBasic.dll (x64) in bin\x64\Release\net10.0-windows\  se non e' nel PATH
 dotnet run -c Release
 ```
 
@@ -60,7 +59,7 @@ Oppure apri `ExpanderTester.csproj` in Visual Studio 2022 e premi F5.
 
 ```
 csharp_gui/
-  ExpanderTester.csproj   progetto .NET (net8.0-windows, x64, WinForms)
+  ExpanderTester.csproj   progetto .NET (net10.0-windows, x64, WinForms)
   Program.cs              entry point
   MainForm.cs             GUI + logica di test (comandi + ricezione)
   PCANBasic.cs            wrapper P/Invoke minimale per PCAN-Basic
